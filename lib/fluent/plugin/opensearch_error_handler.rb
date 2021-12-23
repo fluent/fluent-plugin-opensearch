@@ -1,15 +1,15 @@
 require 'fluent/event'
 require 'fluent/error'
-require_relative 'elasticsearch_constants'
+require_relative 'opensearch_constants'
 
-class Fluent::Plugin::ElasticsearchErrorHandler
-  include Fluent::Plugin::ElasticsearchConstants
+class Fluent::Plugin::OpenSearchErrorHandler
+  include Fluent::Plugin::OpenSearchConstants
 
   attr_accessor :bulk_message_count
-  class ElasticsearchVersionMismatch < Fluent::UnrecoverableError; end
-  class ElasticsearchSubmitMismatch < Fluent::UnrecoverableError; end
-  class ElasticsearchRequestAbortError < Fluent::UnrecoverableError; end
-  class ElasticsearchError < StandardError; end
+  class OpenSearchVersionMismatch < Fluent::UnrecoverableError; end
+  class OpenSearchSubmitMismatch < Fluent::UnrecoverableError; end
+  class OpenSearchRequestAbortError < Fluent::UnrecoverableError; end
+  class OpenSearchError < StandardError; end
 
   def initialize(plugin)
     @plugin = plugin
@@ -27,8 +27,8 @@ class Fluent::Plugin::ElasticsearchErrorHandler
     ['json_parse_exception'].include?(type)
   end
 
-  def log_es_400_reason(&block)
-    if @plugin.log_es_400_reason
+  def log_os_400_reason(&block)
+    if @plugin.log_os_400_reason
       block.call
     else
       @plugin.log.on_debug(&block)
@@ -38,10 +38,10 @@ class Fluent::Plugin::ElasticsearchErrorHandler
   def handle_error(response, tag, chunk, bulk_message_count, extracted_values)
     items = response['items']
     if items.nil? || !items.is_a?(Array)
-      raise ElasticsearchVersionMismatch, "The response format was unrecognized: #{response}"
+      raise OpenSearchVersionMismatch, "The response format was unrecognized: #{response}"
     end
     if bulk_message_count != items.length
-      raise ElasticsearchSubmitMismatch, "The number of records submitted #{bulk_message_count} do not match the number returned #{items.length}. Unable to process bulk response."
+      raise OpenSearchSubmitMismatch, "The number of records submitted #{bulk_message_count} do not match the number returned #{items.length}. Unable to process bulk response."
     end
     retry_stream = Fluent::MultiEventStream.new
     stats = Hash.new(0)
@@ -73,7 +73,7 @@ class Fluent::Plugin::ElasticsearchErrorHandler
         next
       else
         # When we don't have an expected ops field, something changed in the API
-        # expected return values (ES 2.x)
+        # expected return values.
         stats[:errors_bad_resp] += 1
         next
       end
@@ -81,7 +81,7 @@ class Fluent::Plugin::ElasticsearchErrorHandler
         status = item[write_operation]['status']
       else
         # When we don't have a status field, something changed in the API
-        # expected return values (ES 2.x)
+        # expected return values.
         stats[:errors_bad_resp] += 1
         next
       end
@@ -93,7 +93,7 @@ class Fluent::Plugin::ElasticsearchErrorHandler
       when 400 == status
         stats[:bad_argument] += 1
         reason = ""
-        log_es_400_reason do
+        log_os_400_reason do
           if item[write_operation].has_key?('error') && item[write_operation]['error'].has_key?('type')
             reason = " [error type]: #{item[write_operation]['error']['type']}"
           end
@@ -101,30 +101,30 @@ class Fluent::Plugin::ElasticsearchErrorHandler
             reason += " [reason]: \'#{item[write_operation]['error']['reason']}\'"
           end
         end
-        @plugin.router.emit_error_event(tag, time, rawrecord, ElasticsearchError.new("400 - Rejected by Elasticsearch#{reason}"))
+        @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
       else
         if item[write_operation]['error'].is_a?(String)
           reason = item[write_operation]['error']
           stats[:errors_block_resp] += 1
-          @plugin.router.emit_error_event(tag, time, rawrecord, ElasticsearchError.new("#{status} - #{reason}"))
+          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{reason}"))
           next
         elsif item[write_operation].has_key?('error') && item[write_operation]['error'].has_key?('type')
           type = item[write_operation]['error']['type']
           stats[type] += 1
           if unrecoverable_error?(type)
-            raise ElasticsearchRequestAbortError, "Rejected Elasticsearch due to #{type}"
+            raise OpenSearchRequestAbortError, "Rejected OpenSearch due to #{type}"
           end
           if unrecoverable_record_error?(type)
-            @plugin.router.emit_error_event(tag, time, rawrecord, ElasticsearchError.new("#{status} - #{type}: #{reason}"))
+            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
             next
           else
             retry_stream.add(time, rawrecord) unless unrecoverable_record_error?(type)
           end
         else
           # When we don't have a type field, something changed in the API
-          # expected return values (ES 2.x)
+          # expected return values.
           stats[:errors_bad_resp] += 1
-          @plugin.router.emit_error_event(tag, time, rawrecord, ElasticsearchError.new("#{status} - No error type provided in the response"))
+          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - No error type provided in the response"))
           next
         end
         stats[type] += 1
@@ -135,6 +135,6 @@ class Fluent::Plugin::ElasticsearchErrorHandler
       stats.each_pair { |key, value| msg << "#{value} #{key}" }
       @plugin.log.debug msg.join(', ')
     end
-    raise Fluent::Plugin::ElasticsearchOutput::RetryStreamError.new(retry_stream) unless retry_stream.empty?
+    raise Fluent::Plugin::OpenSearchOutput::RetryStreamError.new(retry_stream) unless retry_stream.empty?
   end
 end

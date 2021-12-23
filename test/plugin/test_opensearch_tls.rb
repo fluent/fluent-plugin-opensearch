@@ -1,12 +1,12 @@
 require_relative '../helper'
 require 'fluent/test/driver/output'
 require 'fluent/plugin/output'
-require 'fluent/plugin/elasticsearch_tls'
+require 'fluent/plugin/opensearch_tls'
 
-class TestElasticsearchTLS < Test::Unit::TestCase
+class TestOpenSearchTLS < Test::Unit::TestCase
 
   class TestTLSModuleOutput < Fluent::Plugin::Output
-    include Fluent::Plugin::ElasticsearchTLS
+    include Fluent::Plugin::OpenSearchTLS
 
     def initialize
       super
@@ -48,13 +48,13 @@ class TestElasticsearchTLS < Test::Unit::TestCase
   end
 
   test 'configure' do
-    assert_equal Fluent::Plugin::ElasticsearchTLS::DEFAULT_VERSION, driver.instance.ssl_version
+    assert_equal Fluent::Plugin::OpenSearchTLS::DEFAULT_VERSION, driver.instance.ssl_version
     assert_nil driver.instance.ssl_max_version
     assert_nil driver.instance.ssl_min_version
   end
 
   test 'check USE_TLS_MINMAX_VERSION value' do
-    assert_equal @use_tls_minmax_version, Fluent::Plugin::ElasticsearchTLS::USE_TLS_MINMAX_VERSION
+    assert_equal @use_tls_minmax_version, Fluent::Plugin::OpenSearchTLS::USE_TLS_MINMAX_VERSION
   end
 
   sub_test_case 'set_tls_minmax_version_config' do
@@ -71,7 +71,7 @@ class TestElasticsearchTLS < Test::Unit::TestCase
 
         end
       else
-        assert_equal({version: Fluent::Plugin::ElasticsearchTLS::DEFAULT_VERSION}, ssl_version_options)
+        assert_equal({version: Fluent::Plugin::OpenSearchTLS::DEFAULT_VERSION}, ssl_version_options)
       end
     end
 
@@ -123,7 +123,7 @@ class TestElasticsearchTLS < Test::Unit::TestCase
         assert_equal({max_version: OpenSSL::SSL::TLS1_2_VERSION,
                       min_version: OpenSSL::SSL::TLS1_1_VERSION}, ssl_version_options)
       else
-        assert_equal({version: Fluent::Plugin::ElasticsearchTLS::DEFAULT_VERSION}, ssl_version_options)
+        assert_equal({version: Fluent::Plugin::OpenSearchTLS::DEFAULT_VERSION}, ssl_version_options)
       end
     end
 

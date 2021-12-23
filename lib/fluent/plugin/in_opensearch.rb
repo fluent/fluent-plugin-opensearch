@@ -1,11 +1,11 @@
-require 'elasticsearch'
+require 'opensearch'
 
 require 'fluent/log-ext'
 require 'fluent/plugin/input'
-require_relative 'elasticsearch_constants'
+require_relative 'opensearch_constants'
 
 module Fluent::Plugin
-  class ElasticsearchInput < Input
+  class OpenSearchInput < Input
     class UnrecoverableRequestFailure < Fluent::UnrecoverableError; end
 
     DEFAULT_RELOAD_AFTER = -1
@@ -14,7 +14,7 @@ module Fluent::Plugin
 
     helpers :timer, :thread
 
-    Fluent::Plugin.register_input('elasticsearch', self)
+    Fluent::Plugin.register_input('opensearch', self)
 
     config_param :tag, :string
     config_param :host, :string,  :default => 'localhost'
@@ -27,7 +27,7 @@ module Fluent::Plugin
     config_param :index_name, :string, :default => "fluentd"
     config_param :parse_timestamp, :bool, :default => false
     config_param :timestamp_key_format, :string, :default => nil
-    config_param :timestamp_parse_error_tag, :string, :default => 'elasticsearch_plugin.input.time.error'
+    config_param :timestamp_parse_error_tag, :string, :default => 'opensearch_plugin.input.time.error'
     config_param :query, :hash, :default => {"sort" => [ "_doc" ]}
     config_param :scroll, :string, :default => "1m"
     config_param :size, :integer, :default => 1000
@@ -53,7 +53,7 @@ module Fluent::Plugin
     config_param :docinfo_target, :string, :default => METADATA
     config_param :docinfo, :bool, :default => false
 
-    include Fluent::Plugin::ElasticsearchConstants
+    include Fluent::Plugin::OpenSearchConstants
 
     def initialize
       super
@@ -157,10 +157,10 @@ module Fluent::Plugin
     def start
       super
 
-      timer_execute(:in_elasticsearch_timer, @interval, repeat: @repeat, &method(:run))
+      timer_execute(:in_opensearch_timer, @interval, repeat: @repeat, &method(:run))
     end
 
-    # once fluent v0.14 is released we might be able to use
+    # We might be able to use
     # Fluent::Parser::TimeParser, but it doesn't quite do what we want - if gives
     # [sec,nsec] where as we want something we can call `strftime` on...
     def create_time_parser
@@ -206,9 +206,9 @@ module Fluent::Plugin
       # check here to see if we already have a client connection for the given host
       connection_options = get_connection_options(host)
 
-      @_es = nil unless is_existing_connection(connection_options[:hosts])
+      @_os = nil unless is_existing_connection(connection_options[:hosts])
 
-      @_es ||= begin
+      @_os ||= begin
         @current_config = connection_options[:hosts].clone
         adapter_conf = lambda {|f| f.adapter @http_backend, @backend_options }
         local_reload_connections = @reload_connections
@@ -218,7 +218,7 @@ module Fluent::Plugin
 
         headers = { 'Content-Type' => "application/json" }.merge(@custom_headers)
 
-        transport = Elasticsearch::Transport::Transport::HTTP::Faraday.new(
+        transport = OpenSearch::Transport::Transport::HTTP::Faraday.new(
           connection_options.merge(
             options: {
               reload_connections: local_reload_connections,
@@ -236,13 +236,13 @@ module Fluent::Plugin
               },
               sniffer_class: @sniffer_class,
             }), &adapter_conf)
-        Elasticsearch::Client.new transport: transport
+        OpenSearch::Client.new transport: transport
       end
     end
 
     def is_existing_connection(host)
       # check if the host provided match the current connection
-      return false if @_es.nil?
+      return false if @_os.nil?
       return false if @current_config.nil?
       return false if host.length != @current_config.length
 
@@ -261,7 +261,7 @@ module Fluent::Plugin
       log.warn("Large slice number is specified:(#{@num_slices}). Consider reducing num_slices") if @num_slices > 8
 
       @num_slices.times.map do |slice_id|
-        thread_create(:"in_elasticsearch_thread_#{slice_id}") do
+        thread_create(:"in_opensearch_thread_#{slice_id}") do
           run_slice(slice_id)
         end
       end

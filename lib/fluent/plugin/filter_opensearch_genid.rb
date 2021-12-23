@@ -3,8 +3,8 @@ require 'base64'
 require 'fluent/plugin/filter'
 
 module Fluent::Plugin
-  class ElasticsearchGenidFilter < Filter
-    Fluent::Plugin.register_filter('elasticsearch_genid', self)
+  class OpenSearchGenidFilter < Filter
+    Fluent::Plugin.register_filter('opensearch_genid', self)
 
     config_param :hash_id_key, :string, :default => '_hash'
     config_param :include_tag_in_seed, :bool, :default => false

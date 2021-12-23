@@ -1,5 +1,5 @@
 require 'fluent/error'
 
-class Fluent::Plugin::ElasticsearchError
+class Fluent::Plugin::OpenSearchError
   class RetryableOperationExhaustedFailure < Fluent::UnrecoverableError; end
 end

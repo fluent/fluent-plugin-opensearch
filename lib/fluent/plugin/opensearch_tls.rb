@@ -3,7 +3,7 @@ require 'fluent/configurable'
 require 'fluent/config/error'
 
 module Fluent::Plugin
-  module ElasticsearchTLS
+  module OpenSearchTLS
     SUPPORTED_TLS_VERSIONS = if defined?(OpenSSL::SSL::TLS1_3_VERSION)
                                [:TLSv1, :TLSv1_1, :TLSv1_2, :TLSv1_3].freeze
                              else
@@ -32,16 +32,16 @@ module Fluent::Plugin
                   end
     private_constant :METHODS_MAP
 
-    module ElasticsearchTLSParams
+    module OpenSearchTLSParams
       include Fluent::Configurable
 
-      config_param :ssl_version, :enum, list: Fluent::Plugin::ElasticsearchTLS::SUPPORTED_TLS_VERSIONS, default: Fluent::Plugin::ElasticsearchTLS::DEFAULT_VERSION
-      config_param :ssl_min_version, :enum, list: Fluent::Plugin::ElasticsearchTLS::SUPPORTED_TLS_VERSIONS, default: nil
-      config_param :ssl_max_version, :enum, list: Fluent::Plugin::ElasticsearchTLS::SUPPORTED_TLS_VERSIONS, default: nil
+      config_param :ssl_version, :enum, list: Fluent::Plugin::OpenSearchTLS::SUPPORTED_TLS_VERSIONS, default: Fluent::Plugin::OpenSearchTLS::DEFAULT_VERSION
+      config_param :ssl_min_version, :enum, list: Fluent::Plugin::OpenSearchTLS::SUPPORTED_TLS_VERSIONS, default: nil
+      config_param :ssl_max_version, :enum, list: Fluent::Plugin::OpenSearchTLS::SUPPORTED_TLS_VERSIONS, default: nil
     end
 
     def self.included(mod)
-      mod.include ElasticsearchTLSParams
+      mod.include OpenSearchTLSParams
     end
 
     def set_tls_minmax_version_config(ssl_version, ssl_max_version, ssl_min_version)

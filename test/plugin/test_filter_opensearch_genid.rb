@@ -4,9 +4,9 @@ require 'fluent/test/helpers'
 require 'json'
 require 'fluent/test/driver/filter'
 require 'flexmock/test_unit'
-require 'fluent/plugin/filter_elasticsearch_genid'
+require 'fluent/plugin/filter_opensearch_genid'
 
-class ElasticsearchGenidFilterTest < Test::Unit::TestCase
+class OpenSearchGenidFilterTest < Test::Unit::TestCase
   include FlexMock::TestCase
   include Fluent::Test::Helpers
 
@@ -15,7 +15,7 @@ class ElasticsearchGenidFilterTest < Test::Unit::TestCase
   end
 
   def create_driver(conf='')
-    Fluent::Test::Driver::Filter.new(Fluent::Plugin::ElasticsearchGenidFilter).configure(conf)
+    Fluent::Test::Driver::Filter.new(Fluent::Plugin::OpenSearchGenidFilter).configure(conf)
   end
 
   test "invalid configuration" do

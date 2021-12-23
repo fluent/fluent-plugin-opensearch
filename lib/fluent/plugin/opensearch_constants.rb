@@ -1,6 +1,6 @@
 module Fluent
   module Plugin
-    module ElasticsearchConstants
+    module OpenSearchConstants
       BODY_DELIMITER = "\n".freeze
       UPDATE_OP = "update".freeze
       UPSERT_OP = "upsert".freeze

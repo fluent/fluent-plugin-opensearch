@@ -14,11 +14,11 @@
 
 ## Usage
 
-In your Fluentd configuration, use `@type elasticsearch_genid`. Additional configuration is optional, default values would look like this:
+In your Fluentd configuration, use `@type opensearch_genid`. Additional configuration is optional, default values would look like this:
 
 ```
 <filter>
-  @type elasticsearch_genid
+  @type opensearch_genid
   hash_id_key _hash
   include_tag_in_seed false
   include_time_in_seed false
@@ -99,11 +99,11 @@ You can specify hash algorithm. Support algorithms `md5`, `sha1`, `sha256`, `sha
 
 ## Advanced Usage
 
-Elasticsearch GenID plugin can handle record contents differing with the following parameters:
+Opensearch GenID plugin can handle record contents differing with the following parameters:
 
 ```aconf
 <filter the.awesome.your.routing.tag>
-  @type elasticsearch_genid
+  @type opensearch_genid
   use_entire_record true
   hash_type sha1
   hash_id_key _hash

@@ -1,22 +1,22 @@
 require_relative '../helper'
-require 'fluent/plugin/out_elasticsearch'
-require 'fluent/plugin/elasticsearch_error_handler'
+require 'fluent/plugin/out_opensearch'
+require 'fluent/plugin/opensearch_error_handler'
 require 'json'
 
-class TestElasticsearchErrorHandler < Test::Unit::TestCase
+class TestOpenSearchErrorHandler < Test::Unit::TestCase
 
   class TestPlugin
     attr_reader :log
     attr_reader :error_events
     attr_accessor :unrecoverable_error_types
-    attr_accessor :log_es_400_reason
+    attr_accessor :log_os_400_reason
     attr_accessor :write_operation
-    def initialize(log, log_es_400_reason = false)
+    def initialize(log, log_os_400_reason = false)
       @log = log
       @write_operation = 'index'
       @error_events = []
-      @unrecoverable_error_types = ["out_of_memory_error", "es_rejected_execution_exception"]
-      @log_es_400_reason = log_es_400_reason
+      @unrecoverable_error_types = ["out_of_memory_error", "rejected_execution_exception"]
+      @log_os_400_reason = log_os_400_reason
     end
 
     def router
@@ -61,7 +61,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
     logger = ServerEngine::DaemonLogger.new(@log_device, dl_opts)
     @log = Fluent::Log.new(logger)
     @plugin = TestPlugin.new(@log)
-    @handler = Fluent::Plugin::ElasticsearchErrorHandler.new(@plugin)
+    @handler = Fluent::Plugin::OpenSearchErrorHandler.new(@plugin)
   end
 
   def parse_response(value)
@@ -76,7 +76,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
       logger = ServerEngine::DaemonLogger.new(@log_device, dl_opts)
       @log = Fluent::Log.new(logger)
       @plugin = TestPlugin.new(@log)
-      @handler = Fluent::Plugin::ElasticsearchErrorHandler.new(@plugin)
+      @handler = Fluent::Plugin::OpenSearchErrorHandler.new(@plugin)
     end
 
     def test_400_responses_reason_log
@@ -117,8 +117,8 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
       logger = ServerEngine::DaemonLogger.new(@log_device, dl_opts)
       @log = Fluent::Log.new(logger)
       @plugin = TestPlugin.new(@log)
-      @handler = Fluent::Plugin::ElasticsearchErrorHandler.new(@plugin)
-      @plugin.log_es_400_reason = true
+      @handler = Fluent::Plugin::OpenSearchErrorHandler.new(@plugin)
+      @plugin.log_os_400_reason = true
     end
 
     def test_400_responses_reason_log
@@ -232,12 +232,12 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
 
       chunk = MockChunk.new(records)
       dummy_extracted_values = []
-    assert_raise(Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchRequestAbortError) do
+    assert_raise(Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError) do
       @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
     end
   end
 
-  def test_es_rejected_execution_exception_responses
+  def test_rejected_execution_exception_responses
     records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
     response = parse_response(%({
       "took" : 0,
@@ -249,8 +249,8 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
             "status" : 429,
             "_type"  : "bar",
             "error" : {
-              "type" : "es_rejected_execution_exception",
-              "reason":"rejected execution of org.elasticsearch.transport.TransportService"
+              "type" : "rejected_execution_exception",
+              "reason":"rejected execution of org.opensearch.transport.TransportService"
             }
           }
         }
@@ -259,7 +259,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
 
       chunk = MockChunk.new(records)
       dummy_extracted_values = []
-    assert_raise(Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchRequestAbortError) do
+    assert_raise(Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError) do
       @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
     end
   end
@@ -267,7 +267,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
   def test_es_rejected_execution_exception_responses_as_not_error
     plugin = TestPlugin.new(@log)
     plugin.unrecoverable_error_types = ["out_of_memory_error"]
-    handler = Fluent::Plugin::ElasticsearchErrorHandler.new(plugin)
+    handler = Fluent::Plugin::OpenSearchErrorHandler.new(plugin)
     records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
     response = parse_response(%({
       "took" : 0,
@@ -280,7 +280,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
             "_type"  : "bar",
             "error" : {
               "type" : "es_rejected_execution_exception",
-              "reason":"rejected execution of org.elasticsearch.transport.TransportService"
+              "reason":"rejected execution of org.opensearch.transport.TransportService"
             }
           }
         }
@@ -292,7 +292,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
       chunk = MockChunk.new(records)
       dummy_extracted_values = []
       handler.handle_error(response, 'atag', chunk, response['items'].length, dummy_extracted_values)
-    rescue Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchRequestAbortError, Fluent::Plugin::ElasticsearchOutput::RetryStreamError=>e
+    rescue Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError, Fluent::Plugin::OpenSearchOutput::RetryStreamError=>e
       failed = true
       records = [].tap do |records|
         next unless e.respond_to?(:retry_stream)
@@ -400,7 +400,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
             "status" : 500,
             "error" : {
               "type" : "json_parse_exception",
-              "reason":"Invalid UTF-8 start byte 0x92\\n at [Source: org.elasticsearch.transport.netty4.ByteBufStreamInput@204fe9c9; line: 1, column: 81]"
+              "reason":"Invalid UTF-8 start byte 0x92\\n at [Source: org.opensearch.transport.netty4.ByteBufStreamInput@204fe9c9; line: 1, column: 81]"
             }
           }
         }
@@ -411,7 +411,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
       failed = false
       dummy_extracted_values = []
       @handler.handle_error(response, 'atag', chunk, response['items'].length, dummy_extracted_values)
-    rescue Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchRequestAbortError, Fluent::Plugin::ElasticsearchOutput::RetryStreamError=>e
+    rescue Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError, Fluent::Plugin::OpenSearchOutput::RetryStreamError=>e
       failed = true
       records = [].tap do |records|
         next unless e.respond_to?(:retry_stream)
@@ -527,7 +527,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
       failed = false
       dummy_extracted_values = []
       @handler.handle_error(response, 'atag', chunk, response['items'].length, dummy_extracted_values)
-    rescue Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchRequestAbortError, Fluent::Plugin::ElasticsearchOutput::RetryStreamError=>e
+    rescue Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError, Fluent::Plugin::OpenSearchOutput::RetryStreamError=>e
       failed = true
       records = [].tap do |records|
         next unless e.respond_to?(:retry_stream)
@@ -640,7 +640,7 @@ class TestElasticsearchErrorHandler < Test::Unit::TestCase
       failed = false
       dummy_extracted_values = []
       @handler.handle_error(response, 'atag', chunk, response['items'].length, dummy_extracted_values)
-    rescue Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchRequestAbortError, Fluent::Plugin::ElasticsearchOutput::RetryStreamError=>e
+    rescue Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError, Fluent::Plugin::OpenSearchOutput::RetryStreamError=>e
       failed = true
       records = [].tap do |records|
         next unless e.respond_to?(:retry_stream)

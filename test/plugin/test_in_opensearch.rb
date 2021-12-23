@@ -4,14 +4,14 @@ require 'fluent/test/helpers'
 require 'json'
 require 'fluent/test/driver/input'
 require 'flexmock/test_unit'
-require 'fluent/plugin/in_elasticsearch'
+require 'fluent/plugin/in_opensearch'
 
-class ElasticsearchInputTest < Test::Unit::TestCase
+class OpenSearchInputTest < Test::Unit::TestCase
   include FlexMock::TestCase
   include Fluent::Test::Helpers
 
   CONFIG = %[
-    tag raw.elasticsearch
+    tag raw.opensearch
     interval 2
   ]
 
@@ -20,19 +20,15 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     @driver = nil
     log = Fluent::Engine.log
     log.out.logs.slice!(0, log.out.logs.length)
-    @http_method = if Gem::Version.new(Elasticsearch::VERSION) >= Gem::Version.new("7.9.0")
-                     :post
-                   else
-                     :get
-                   end
+    @http_method = :post
   end
 
   def driver(conf='')
-    @driver ||= Fluent::Test::Driver::Input.new(Fluent::Plugin::ElasticsearchInput).configure(conf)
+    @driver ||= Fluent::Test::Driver::Input.new(Fluent::Plugin::OpenSearchInput).configure(conf)
   end
 
-  def stub_elastic_info(url="http://localhost:9200/", version="7.9.0")
-    body ="{\"version\":{\"number\":\"#{version}\", \"build_flavor\":\"default\"},\"tagline\" : \"You Know, for Search\"}"
+  def stub_elastic_info(url="http://localhost:9200/", version="1.2.2")
+    body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
     stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
   end
 
@@ -167,7 +163,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
       path     /es/
       user     john
       password doe
-      tag      raw.elasticsearch
+      tag      raw.opensearch
     }
     instance = driver(config).instance
 
@@ -178,7 +174,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     assert_equal '/es/', instance.path
     assert_equal 'john', instance.user
     assert_equal 'doe', instance.password
-    assert_equal 'raw.elasticsearch', instance.tag
+    assert_equal 'raw.opensearch', instance.tag
     assert_equal :TLSv1_2, instance.ssl_version
     assert_equal 'fluentd', instance.index_name
     assert_equal expected_query, instance.query
@@ -205,7 +201,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
       host     logs.google.com
       user     john
       password doe
-      tag      raw.elasticsearch
+      tag      raw.opensearch
     }
     instance = driver(config).instance
 
@@ -218,7 +214,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     assert_equal 'john', host1[:user]
     assert_equal 'doe', host1[:password]
     assert_equal nil, host1[:path]
-    assert_equal 'raw.elasticsearch', instance.tag
+    assert_equal 'raw.opensearch', instance.tag
   end
 
   def test_single_host_params_and_defaults_with_escape_placeholders
@@ -226,7 +222,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
       host     logs.google.com
       user     %{j+hn}
       password %{d@e}
-      tag      raw.elasticsearch
+      tag      raw.opensearch
     }
     instance = driver(config).instance
 
@@ -239,7 +235,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     assert_equal 'j%2Bhn', host1[:user]
     assert_equal 'd%40e', host1[:password]
     assert_equal nil, host1[:path]
-    assert_equal 'raw.elasticsearch', instance.tag
+    assert_equal 'raw.opensearch', instance.tag
   end
 
   def test_legacy_hosts_list
@@ -248,7 +244,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
       scheme   https
       path     /es/
       port     123
-      tag      raw.elasticsearch
+      tag      raw.opensearch
     }
     instance = driver(config).instance
 
@@ -263,7 +259,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     assert_equal 123, host3[:port]
     assert_equal 'https', host3[:scheme]
     assert_equal '/es/', host3[:path]
-    assert_equal 'raw.elasticsearch', instance.tag
+    assert_equal 'raw.opensearch', instance.tag
   end
 
   def test_hosts_list
@@ -272,7 +268,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
       path     /default_path
       user     default_user
       password default_password
-      tag      raw.elasticsearch
+      tag      raw.opensearch
     }
     instance = driver(config).instance
 
@@ -291,7 +287,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     assert_equal 'default_user', host2[:user]
     assert_equal 'default_password', host2[:password]
     assert_equal '/default_path', host2[:path]
-    assert_equal 'raw.elasticsearch', instance.tag
+    assert_equal 'raw.opensearch', instance.tag
   end
 
   def test_hosts_list_with_escape_placeholders
@@ -300,7 +296,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
       path     /default_path
       user     default_user
       password default_password
-      tag      raw.elasticsearch
+      tag      raw.opensearch
     }
     instance = driver(config).instance
 
@@ -319,7 +315,7 @@ class ElasticsearchInputTest < Test::Unit::TestCase
     assert_equal 'default_user', host2[:user]
     assert_equal 'default_password', host2[:password]
     assert_equal '/default_path', host2[:path]
-    assert_equal 'raw.elasticsearch', instance.tag
+    assert_equal 'raw.opensearch', instance.tag
   end
 
   def test_emit

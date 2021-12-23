@@ -1,5 +1,5 @@
 require_relative '../helper'
-require 'elasticsearch'
+require 'opensearch'
 
 class OjSerializerTest < Test::Unit::TestCase
   def setup

@@ -1,5 +1,5 @@
 require 'fluent/log'
-# For elasticsearch-ruby v7.0.0 or later
+# For opensearch-ruby v1.0.0 or later which is based on elasticsearch-ruby v7.14 master tree
 # logger for Elasticsearch::Loggable required the following methods:
 #
 # * debug?
@@ -10,7 +10,7 @@ require 'fluent/log'
 
 module Fluent
   class Log
-    # Elasticsearch::Loggable does not request trace? method.
+    # OpenSearch::Loggable does not request trace? method.
     # def trace?
     #   @level <= LEVEL_TRACE
     # end

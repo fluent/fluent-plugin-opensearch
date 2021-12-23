@@ -1,22 +1,19 @@
 require_relative '../helper'
-require 'elasticsearch'
-require 'fluent/plugin/elasticsearch_index_lifecycle_management'
+require 'opensearch'
+require 'fluent/plugin/opensearch_index_lifecycle_management'
 
-class TestElasticsearchIndexLifecycleManagement < Test::Unit::TestCase
-  include Fluent::Plugin::ElasticsearchIndexLifecycleManagement
+class TestOpenSearchIndexLifecycleManagement < Test::Unit::TestCase
+  include Fluent::Plugin::OpenSearchIndexLifecycleManagement
 
   def setup
     begin
-      require "elasticsearch/xpack"
+      require "opensearch/xpack"
     rescue LoadError
-      omit "ILM testcase needs elasticsearch-xpack gem."
+      omit "ILM testcase needs opensearch-xpack gem."
     end
-    if Gem::Version.create(::Elasticsearch::Transport::VERSION) < Gem::Version.create("7.4.0")
-      omit "elastisearch-ruby v7.4.0 or later is needed for ILM."
-    end
-    Fluent::Plugin::ElasticsearchIndexLifecycleManagement.module_eval(<<-CODE)
+    Fluent::Plugin::OpenSearchIndexLifecycleManagement.module_eval(<<-CODE)
       def client
-        Elasticsearch::Client.new url: 'localhost:9200'
+        OpenSearch::Client.new url: 'localhost:9200'
       end
       def log
         log_device = Fluent::Test::DummyLogDevice.new
@@ -27,7 +24,7 @@ class TestElasticsearchIndexLifecycleManagement < Test::Unit::TestCase
     CODE
   end
 
-  def stub_elastic_info(url="http://localhost:9200/", version="7.9.0")
+  def stub_opensearch_info(url="http://localhost:9200/", version="7.9.0")
     body ="{\"version\":{\"number\":\"#{version}\", \"build_flavor\":\"default\"},\"tagline\" : \"You Know, for Search\"}"
     stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
   end
@@ -35,7 +32,7 @@ class TestElasticsearchIndexLifecycleManagement < Test::Unit::TestCase
   def test_xpack_info
     stub_request(:get, "http://localhost:9200/_xpack").
       to_return(:status => 200, :body => '{"features":{"ilm":{"available":true,"enabled":true}}}', :headers => {"Content-Type"=> "application/json"})
-    stub_elastic_info
+    stub_opensearch_info
     expected = {"features"=>{"ilm"=>{"available"=>true, "enabled"=>true}}}
     assert_equal(expected, xpack_info)
   end
@@ -43,21 +40,21 @@ class TestElasticsearchIndexLifecycleManagement < Test::Unit::TestCase
   def test_verify_ilm_working
     stub_request(:get, "http://localhost:9200/_xpack").
       to_return(:status => 200, :body => '{"features":{"ilm":{"available":true,"enabled":true}}}', :headers => {"Content-Type"=> "application/json"})
-    stub_elastic_info
+    stub_opensearch_info
     assert_nothing_raised { verify_ilm_working }
   end
 
   def test_ilm_policy_doesnt_exists
     stub_request(:get, "http://localhost:9200/_ilm/policy/%7B:policy_id=%3E%22fluentd-policy%22%7D").
       to_return(:status => 404, :body => "", :headers => {})
-    stub_elastic_info
+    stub_opensearch_info
     assert_false(ilm_policy_exists?(policy_id: "fluentd-policy"))
   end
 
   def test_ilm_policy_exists
     stub_request(:get, "http://localhost:9200/_ilm/policy/%7B:policy_id=%3E%22fluent-policy%22%7D").
       to_return(:status => 200, :body => "", :headers => {})
-    stub_elastic_info
+    stub_opensearch_info
     assert_true(ilm_policy_exists?(policy_id: "fluent-policy"))
   end
 
@@ -68,7 +65,7 @@ class TestElasticsearchIndexLifecycleManagement < Test::Unit::TestCase
       with(:body => "{\"policy\":{\"phases\":{\"hot\":{\"actions\":{\"rollover\":{\"max_size\":\"50gb\",\"max_age\":\"30d\"}}}}}}",
          :headers => {'Content-Type'=>'application/json'}).
       to_return(:status => 200, :body => "", :headers => {})
-    stub_elastic_info
+    stub_opensearch_info
     create_ilm_policy("fluent-policy")
 
     assert_requested(:put, "http://localhost:9200/_ilm/policy/fluent-policy", times: 1)

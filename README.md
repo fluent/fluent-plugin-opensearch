@@ -1,17 +1,13 @@
-# Fluent::Plugin::Elasticsearch, a plugin for [Fluentd](http://fluentd.org)
+# Fluent::Plugin::OpenSearch, a plugin for [Fluentd](http://fluentd.org)
 
-[![Gem Version](https://badge.fury.io/rb/fluent-plugin-elasticsearch.png)](http://badge.fury.io/rb/fluent-plugin-elasticsearch)
-![Testing on Windows](https://github.com/uken/fluent-plugin-elasticsearch/workflows/Testing%20on%20Windows/badge.svg?branch=master)
-![Testing on macOS](https://github.com/uken/fluent-plugin-elasticsearch/workflows/Testing%20on%20macOS/badge.svg?branch=master)
-![Testing on Ubuntu](https://github.com/uken/fluent-plugin-elasticsearch/workflows/Testing%20on%20Ubuntu/badge.svg?branch=master)
-[![Coverage Status](https://coveralls.io/repos/uken/fluent-plugin-elasticsearch/badge.png)](https://coveralls.io/r/uken/fluent-plugin-elasticsearch)
-[![Code Climate](https://codeclimate.com/github/uken/fluent-plugin-elasticsearch.png)](https://codeclimate.com/github/uken/fluent-plugin-elasticsearch)
+[![Gem Version](https://badge.fury.io/rb/fluent-plugin-opensearch.png)](http://badge.fury.io/rb/fluent-plugin-opensearch)
+![Testing on Windows](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Windows/badge.svg?branch=master)
+![Testing on macOS](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20macOS/badge.svg?branch=master)
+![Testing on Ubuntu](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Ubuntu/badge.svg?branch=master)
+[![Coverage Status](https://coveralls.io/repos/fluent/fluent-plugin-opensearch/badge.png)](https://coveralls.io/r/fluent/fluent-plugin-opensearch)
+[![Code Climate](https://codeclimate.com/github/fluent/fluent-plugin-opensearch.png)](https://codeclimate.com/github/fluent/fluent-plugin-opensearch)
 
-Send your logs to Elasticsearch (and search them with Kibana maybe?)
-
-Note: For Amazon Elasticsearch Service please consider using [fluent-plugin-aws-elasticsearch-service](https://github.com/atomita/fluent-plugin-aws-elasticsearch-service)
-
-Current maintainers: [Hiroshi Hatake | @cosmo0920](https://github.com/cosmo0920), [Kentaro Hayashi | @kenhys](https://github.com/kenhys)
+Send your logs to OpenSearch (and search them with Kibana maybe?)
 
 * [Installation](#installation)
 * [Usage](#usage)
@@ -51,8 +47,8 @@ Current maintainers: [Hiroshi Hatake | @cosmo0920](https://github.com/cosmo0920)
   + [templates](#templates)
   + [max_retry_putting_template](#max_retry_putting_template)
   + [fail_on_putting_template_retry_exceed](#fail_on_putting_template_retry_exceed)
-  + [fail_on_detecting_es_version_retry_exceed](#fail_on_detecting_es_version_retry_exceed)
-  + [max_retry_get_es_version](#max_retry_get_es_version)
+  + [fail_on_detecting_os_version_retry_exceed](#fail_on_detecting_os_version_retry_exceed)
+  + [max_retry_get_os_version](#max_retry_get_os_version)
   + [request_timeout](#request_timeout)
   + [reload_connections](#reload_connections)
   + [reload_on_failure](#reload_on_failure)
@@ -85,33 +81,28 @@ Current maintainers: [Hiroshi Hatake | @cosmo0920](https://github.com/cosmo0920)
   + [reload_after](#reload-after)
   + [validate_client_version](#validate-client-version)
   + [unrecoverable_error_types](#unrecoverable-error-types)
-  + [verify_es version at startup](#verify_es_version_at_startup)
-  + [default_elasticsearch_version](#default_elasticsearch_version)
+  + [verify os version at startup](#verify_os_version_at_startup)
+  + [default_opensearch_version](#default_opensearch_version)
   + [custom_headers](#custom_headers)
   + [api_key](#api_key)
   + [Not seeing a config you need?](#not-seeing-a-config-you-need)
   + [Dynamic configuration](#dynamic-configuration)
   + [Placeholders](#placeholders)
   + [Multi workers](#multi-workers)
-  + [log_es_400_reason](#log_es_400_reason)
+  + [log_os_400_reason](#log_os_400_reason)
   + [suppress_doc_wrap](#suppress_doc_wrap)
   + [ignore_exceptions](#ignore_exceptions)
   + [exception_backup](#exception_backup)
   + [bulk_message_request_threshold](#bulk_message_request_threshold)
-  + [enable_ilm](#enable_ilm)
-  + [ilm_policy_id](#ilm_policy_id)
-  + [ilm_policy](#ilm_policy)
-  + [ilm_policies](#ilm_policies)
-  + [ilm_policy_overwrite](#ilm_policy_overwrite)
   + [truncate_caches_interval](#truncate_caches_interval)
   + [use_legacy_template](#use_legacy_template)
   + [metadata section](#metadata-section)
     + [include_chunk_id](#include_chunk_id)
     + [chunk_id_key](#chunk_id_key)
-* [Configuration - Elasticsearch Input](#configuration---elasticsearch-input)
-* [Configuration - Elasticsearch Filter GenID](#configuration---elasticsearch-filter-genid)
-* [Configuration - Elasticsearch Output Data Stream](#configuration---elasticsearch-output-data-stream)
-* [Elasticsearch permissions](#elasticsearch-permissions)
+* [Configuration - OpenSearch Input](#configuration---opensearch-input)
+* [Configuration - OpenSearch Filter GenID](#configuration---opensearch-filter-genid)
+* [Configuration - OpenSearch Output Data Stream](#configuration---opensearch-output-data-stream)
+* [OpenSearch permissions](#opensearch-permissions)
 * [Troubleshooting](#troubleshooting)
 * [Contact](#contact)
 * [Contributing](#contributing)
@@ -119,46 +110,36 @@ Current maintainers: [Hiroshi Hatake | @cosmo0920](https://github.com/cosmo0920)
 
 ## Requirements
 
-| fluent-plugin-elasticsearch  | fluentd     | ruby   |
+| fluent-plugin-opensearch  | fluentd     | ruby   |
 |:----------------------------:|:-----------:|:------:|
-| >= 4.0.1                     | >= v0.14.22 | >= 2.3 |
-| >= 3.2.4 && < 4.0.1          | >= v0.14.22 | >= 2.1 |
-| >= 2.0.0 && < 3.2.3          | >= v0.14.20 | >= 2.1 |
-|  < 2.0.0                     | >= v0.12.0  | >= 1.9 |
+| >= 1.0.0                     | >= v1.x  | >= 2.4 |
 
-NOTE: For v0.12 version, you should use 1.x.y version. Please send patch into v0.12 branch if you encountered 1.x version's bug.
-
-NOTE: This documentation is for fluent-plugin-elasticsearch 2.x or later. For 1.x documentation, please see [v0.12 branch](https://github.com/uken/fluent-plugin-elasticsearch/tree/v0.12).
-
-NOTE: Using Index Lifecycle management(ILM) feature needs to install elasticsearch-xpack gem v7.4.0 or later.
+NOTE: This documentation is for fluent-plugin-opensearch 1.x or later.
 
 ## Installation
 
 ```sh
-$ gem install fluent-plugin-elasticsearch
+$ gem install fluent-plugin-opensearch
 ```
 
 ## Usage
 
-In your Fluentd configuration, use `@type elasticsearch`. Additional configuration is optional, default values would look like this:
+In your Fluentd configuration, use `@type opensearch`. Additional configuration is optional, default values would look like this:
 
 ```
 <match my.logs>
-  @type elasticsearch
+  @type opensearch
   host localhost
   port 9200
   index_name fluentd
-  type_name fluentd
 </match>
 ```
 
-NOTE: `type_name` parameter will be used fixed `_doc` value for Elasticsearch 7.
-
-NOTE: `type_name` parameter will make no effect for Elasticsearch 8.
+NOTE: `type_name` parameter is fixed value and cannot change and configure from `_doc` value for OpenSearch 1.
 
 ### Index templates
 
-This plugin creates Elasticsearch indices by merely writing to them. Consider using [Index Templates](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates.html) to gain control of what get indexed and how. See [this example](https://github.com/uken/fluent-plugin-elasticsearch/issues/33#issuecomment-38693282) for a good starting point.
+This plugin creates OpenSearch indices by merely writing to them. Consider using [Index Templates](https://opensearch.org/docs/latest/opensearch/index-templates/) to gain control of what get indexed and how.
 
 ## Configuration
 
@@ -168,9 +149,7 @@ This plugin creates Elasticsearch indices by merely writing to them. Consider us
 host user-custom-host.domain # default localhost
 ```
 
-You can specify Elasticsearch host by this parameter.
-
-**Note:** Since v3.3.2, `host` parameter supports builtin placeholders. If you want to send events dynamically into different hosts at runtime with `elasticsearch_dynamic` output plugin, please consider to switch to use plain `elasticsearch` output plugin. In more detail for builtin placeholders, please refer to [Placeholders](#placeholders) section.
+You can specify OpenSearch host by this parameter.
 
 To use IPv6 address on `host` parameter, you can use the following styles:
 
@@ -196,27 +175,7 @@ host 2404:7a80:d440:3000:192a:a292:bd7f:ca10
 port 9201 # defaults to 9200
 ```
 
-You can specify Elasticsearch port by this parameter.
-
-### cloud_id
-
-```
-cloud_id test-dep:ZXVyb3BlLXdlc3QxLmdjcC5jbG91ZC5lcy5pbyRiYZTA1Ng== 
-```
-
-You can specify Elasticsearch cloud_id by this parameter.
-
-If you specify `cloud_id` option then `cloud_auth` option is required.
-If you specify `cloud_id` option, `host`, `port`, `user` and `password` options are ignored.
-
-### cloud_auth
-
-```
-cloud_auth 'elastic:slkjdaooewkd87iqQ2O8EQYV'
-```
-
-You can specify Elasticsearch cloud_auth by this parameter.
-
+You can specify OpenSearch port by this parameter.
 
 ### emit_error_for_missing_id
 
@@ -233,9 +192,9 @@ behavior is to silently drop the records.
 hosts host1:port1,host2:port2,host3:port3
 ```
 
-You can specify multiple Elasticsearch hosts with separator ",".
+You can specify multiple OpenSearch hosts with separator ",".
 
-If you specify multiple hosts, this plugin will load balance updates to Elasticsearch. This is an [elasticsearch-ruby](https://github.com/elasticsearch/elasticsearch-ruby) feature, the default strategy is round-robin.
+If you specify multiple hosts, this plugin will load balance updates to OpenSearch. This is an [opensearch-ruby](https://github.com/opensearch-project/opensearch-ruby) feature, the default strategy is round-robin.
 
 If you specify `hosts` option, `host` and `port` options are ignored.
 
@@ -252,9 +211,9 @@ port 9200
 hosts host1:port1,host2:port2,host3 # port3 is 9200
 ```
 
-**Note:** If you will use scheme https, do not include "https://" in your hosts ie. host "https://domain", this will cause ES cluster to be unreachable and you will receive an error "Can not reach Elasticsearch cluster"
+**Note:** If you will use scheme https, do not include "https://" in your hosts ie. host "https://domain", this will cause ES cluster to be unreachable and you will receive an error "Can not reach OpenSearch cluster"
 
-**Note:** Up until v2.8.5, it was allowed to embed the username/password in the URL. However, this syntax is deprecated as of v2.8.6 because it was found to cause serious connection problems (See #394). Please migrate your settings to use the `user` and `password` field (described below) instead.
+**Note:** Embedded the username/password in the URL syntax is not recommended to use because it was found to cause serious connection problems. Please do not use its style on your settings and use the `user` and `password` field (described below) instead.
 
 #### IPv6 addresses
 
@@ -264,7 +223,7 @@ When you want to specify IPv6 addresses, you must specify schema together:
 hosts http://[2404:7a80:d440:3000:de:7311:6329:2e6c]:port1,http://[2404:7a80:d440:3000:de:7311:6329:1e6c]:port2,http://[2404:7a80:d440:3000:de:6311:6329:2e6c]:port3
 ```
 
-If you don't specify hosts with schema together, Elasticsearch plugin complains Invalid URI for them.
+If you don't specify hosts with schema together, OpenSearch plugin complains Invalid URI for them.
 
 ### user, password, path, scheme, ssl_verify
 
@@ -292,7 +251,7 @@ Specify `ssl_verify false` to skip ssl verification (defaults to true)
 logstash_format true # defaults to false
 ```
 
-This is meant to make writing data into Elasticsearch indices compatible to what [Logstash](https://www.elastic.co/products/logstash) calls them. By doing this, one could take advantage of [Kibana](https://www.elastic.co/products/kibana). See logstash_prefix and logstash_dateformat to customize this index name pattern. The index name will be `#{logstash_prefix}-#{formatted_date}`
+This is meant to make writing data into OpenSearch indices compatible to what [Logstash](https://www.elastic.co/products/logstash) calls them. By doing this, one could take advantage of [Kibana](https://www.elastic.co/products/kibana). See logstash\_prefix and logstash\_dateformat to customize this index name pattern. The index name will be `#{logstash_prefix}-#{formatted_date}`
 
 :warning: Setting this option to `true` will ignore the `index_name` setting. The default index name prefix is `logstash-`.
 
@@ -302,7 +261,7 @@ This is meant to make writing data into Elasticsearch indices compatible to what
 include_timestamp true # defaults to false
 ```
 
-Adds a `@timestamp` field to the log, following all settings `logstash_format` does, except without the restrictions on `index_name`. This allows one to log to an alias in Elasticsearch and utilize the rollover API.
+Adds a `@timestamp` field to the log, following all settings `logstash_format` does, except without the restrictions on `index_name`. This allows one to log to an alias in OpenSearch and utilize the rollover API.
 
 ### logstash_prefix
 
@@ -326,9 +285,8 @@ logstash_dateformat %Y.%m. # defaults to "%Y.%m.%d"
 
 ### pipeline
 
-Only in ES >= 5.x is available to use this parameter.
-This param is to set a pipeline id of your elasticsearch to be added into the request, you can configure ingest node.
-For more information: [![Ingest node](https://www.elastic.co/guide/en/elasticsearch/reference/master/ingest.html)]
+This param is to set a pipeline id of your opensearch to be added into the request, you can configure ingest node.
+For more information: [![Ingest node](https://www.elastic.co/guide/en/opensearch/reference/master/ingest.html)]
 
 ```
 pipeline pipeline_id
@@ -338,7 +296,7 @@ pipeline pipeline_id
 
 The format of the time stamp field (`@timestamp` or what you specify with [time_key](#time_key)). This parameter only has an effect when [logstash_format](#logstash_format) is true as it only affects the name of the index we write to. Please see [Time#strftime](http://ruby-doc.org/core-1.9.3/Time.html#method-i-strftime) for information about the value of this format.
 
-Setting this to a known format can vastly improve your log ingestion speed if all most of your logs are in the same format. If there is an error parsing this format the timestamp will default to the ingestion time. If you are on Ruby 2.0 or later you can get a further performance improvement by installing the "strptime" gem: `fluent-gem install strptime`.
+Setting this to a known format can vastly improve your log ingestion speed if all most of your logs are in the same format. If there is an error parsing this format the timestamp will default to the ingestion time. You can get a further performance improvement by installing the "strptime" gem: `fluent-gem install strptime`.
 
 For example to parse ISO8601 times with sub-second precision:
 
@@ -404,20 +362,6 @@ utc_index true
 
 By default, the records inserted into index `logstash-YYMMDD` with UTC (Coordinated Universal Time). This option allows to use local time if you describe utc_index to false.
 
-### suppress_type_name
-
-In Elasticsearch 7.x, Elasticsearch cluster complains the following types removal warnings:
-
-```json
-{"type": "deprecation", "timestamp": "2020-07-03T08:02:20,830Z", "level": "WARN", "component": "o.e.d.a.b.BulkRequestParser", "cluster.name": "docker-cluster", "node.name": "70dd5c6b94c3", "message": "[types removal] Specifying types in bulk requests is deprecated.", "cluster.uuid": "NoJJmtzfTtSzSMv0peG8Wg", "node.id": "VQ-PteHmTVam2Pnbg7xWHw"  }
-```
-
-This can be suppressed with:
-
-```
-suppress_type_name true
-```
-
 ### target_index_key
 
 Tell this plugin to find the index name to write to in the record under this key in preference to other mechanisms. Key can be specified as path to nested record using dot ('.') as a separator.
@@ -467,7 +411,7 @@ By default plugin writes data of logstash format index based on current time. Fo
 
 But if you have a use case where data is also updated after indexing and `id_key` is used to identify the document uniquely for updating. Logstash format is wanted to be used for easy data managing and retention. Updates are done right after indexing to complete the data (all data not available from single source) and no updates are done anymore later point on time. In this case problem happends at index rotation time where write to 2 indexes with same id_key value may happen.
 
-This setting will search existing data by using elastic search's [id query](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-ids-query.html) using `id_key` value (with logstash_prefix and logstash_prefix_separator index pattarn e.g. `logstash-*`). The index of found data is used for update/upsert. When no data is found, data is written to current logstash index as normally.
+This setting will search existing data by using elastic search's [id query](https://www.elastic.co/guide/en/opensearch/reference/current/query-dsl-ids-query.html) using `id_key` value (with logstash_prefix and logstash_prefix_separator index pattarn e.g. `logstash-*`). The index of found data is used for update/upsert. When no data is found, data is written to current logstash index as normally.
 
 This setting requires following other settings:
 ```
@@ -480,7 +424,7 @@ Suppose you have the following situation where you have 2 different match to con
 
 ```
   <match data1>
-    @type elasticsearch
+    @type opensearch
     ...
     id_key myId
     write_operation upsert
@@ -491,7 +435,7 @@ Suppose you have the following situation where you have 2 different match to con
     ...
 
   <match data2>
-    @type elasticsearch
+    @type opensearch
     ...
     id_key myId
     write_operation upsert
@@ -576,33 +520,27 @@ Specify this to override the index date pattern for creating a rollover index. T
 for example: <logstash-default-{now/d}-000001>. Overriding this changes the rollover time period. Setting
 "now/w{xxxx.ww}" would create weekly rollover indexes instead of daily.
 
-This setting only takes effect when combined with the [enable_ilm](#enable_ilm) setting.
-
 ```
 index_date_pattern "now/w{xxxx.ww}" # defaults to "now/d"
 ```
 
 If empty string(`""`) is specified in `index_date_pattern`, index date pattern is not used.
-Elasticsearch plugin just creates <`target_index`-`application_name`-000001> rollover index instead of <`target_index`-`application_name`-`{index_date_pattern}`-000001>.
+OpenSearch plugin just creates <`target_index`-`application_name`-000001> rollover index instead of <`target_index`-`application_name`-`{index_date_pattern}`-000001>.
 
 If [customize_template](#customize_template) is set, then this parameter will be in effect otherwise ignored.
 
 ### deflector_alias
 
-Specify the deflector alias which would be assigned to the rollover index created. This is useful in case of using the Elasticsearch rollover API
+Specify the deflector alias which would be assigned to the rollover index created. This is useful in case of using the OpenSearch rollover API
 ```
 deflector_alias test-current
 ```
 
 If [rollover_index](#rollover_index) is set, then this parameter will be in effect otherwise ignored.
 
-**NOTE:** Since 4.1.1, `deflector_alias` is prohibited to use with `enable_ilm`.
-
 ### index_prefix
 
 This parameter is marked as obsoleted.
-Consider to use [index_name](#index_name) for specify ILM target index when not using with logstash_format.
-When specifying `logstash_format` as true, consider to use [logstash_prefix](#logstash_prefix) to specify ILM target index prefix.
 
 ### application_name
 
@@ -610,8 +548,6 @@ Specify the application name for the rollover index to be created.
 ```
 application_name default # defaults to "default"
 ```
-
-If [enable_ilm](#enable_ilm) is set, then this parameter will be in effect otherwise ignored.
 
 ### template_overwrite
 
@@ -627,8 +563,8 @@ One of [template_file](#template_file) or [templates](#templates) must also be s
 
 You can specify times of retry putting template.
 
-This is useful when Elasticsearch plugin cannot connect Elasticsearch to put template.
-Usually, booting up clustered Elasticsearch containers are much slower than launching Fluentd container.
+This is useful when OpenSearch plugin cannot connect OpenSearch to put template.
+Usually, booting up clustered OpenSearch containers are much slower than launching Fluentd container.
 
 ```
 max_retry_putting_template 15 # defaults to 10
@@ -643,39 +579,39 @@ If you have multiple output plugin, you could use this property to do not fail o
 fail_on_putting_template_retry_exceed false # defaults to true
 ```
 
-### fail_on_detecting_es_version_retry_exceed
+### fail_on_detecting_os_version_retry_exceed
 
-Indicates whether to fail when `max_retry_get_es_version` is exceeded.
-If you want to use fallback mechanism for obtaining ELasticsearch version, you could use this property to do not fail on fluentd statup.
+Indicates whether to fail when `max_retry_get_os_version` is exceeded.
+If you want to use fallback mechanism for obtaining OpenSearch version, you could use this property to do not fail on fluentd statup.
 
 ```
-fail_on_detecting_es_version_retry_exceed false
+fail_on_detecting_os_version_retry_exceed false
 ```
 
 And the following parameters should be working with:
 
 ```
-verify_es_version_at_startup true
-max_retry_get_es_version 2 # greater than 0.
-default_elasticsearch_version 7 # This version is used when occurring fallback.
+verify_os_version_at_startup true
+max_retry_get_os_version 2 # greater than 0.
+default_opensearch_version 1 # This version is used when occurring fallback.
 ```
 
-### max_retry_get_es_version
+### max_retry_get_os_version
 
-You can specify times of retry obtaining Elasticsearch version.
+You can specify times of retry obtaining OpenSearch version.
 
-This is useful when Elasticsearch plugin cannot connect Elasticsearch to obtain Elasticsearch version.
-Usually, booting up clustered Elasticsearch containers are much slower than launching Fluentd container.
+This is useful when OpenSearch plugin cannot connect OpenSearch to obtain OpenSearch version.
+Usually, booting up clustered OpenSearch containers are much slower than launching Fluentd container.
 
 ```
-max_retry_get_es_version 17 # defaults to 15
+max_retry_get_os_version 17 # defaults to 15
 ```
 
 ### request_timeout
 
 You can specify HTTP request timeout.
 
-This is useful when Elasticsearch cannot return response for bulk request within the default of 5 seconds.
+This is useful when OpenSearch cannot return response for bulk request within the default of 5 seconds.
 
 ```
 request_timeout 15s # defaults to 5s
@@ -683,7 +619,7 @@ request_timeout 15s # defaults to 5s
 
 ### reload_connections
 
-You can tune how the elasticsearch-transport host reloading feature works. By default it will reload the host list from the server every 10,000th request to spread the load. This can be an issue if your Elasticsearch cluster is behind a Reverse Proxy, as Fluentd process may not have direct network access to the Elasticsearch nodes.
+You can tune how the opensearch-transport host reloading feature works. By default it will reload the host list from the server every 10,000th request to spread the load. This can be an issue if your OpenSearch cluster is behind a Reverse Proxy, as Fluentd process may not have direct network access to the OpenSearch nodes.
 
 ```
 reload_connections false # defaults to true
@@ -691,7 +627,7 @@ reload_connections false # defaults to true
 
 ### reload_on_failure
 
-Indicates that the elasticsearch-transport will try to reload the nodes addresses if there is a failure while making the
+Indicates that the opensearch-transport will try to reload the nodes addresses if there is a failure while making the
 request, this can be useful to quickly remove a dead node from the list of addresses.
 
 ```
@@ -700,7 +636,7 @@ reload_on_failure true # defaults to false
 
 ### resurrect_after
 
-You can set in the elasticsearch-transport how often dead connections from the elasticsearch-transport's pool will be resurrected.
+You can set in the opensearch-transport how often dead connections from the opensearch-transport's pool will be resurrected.
 
 ```
 resurrect_after 5s # defaults to 60s
@@ -717,13 +653,13 @@ This will add the Fluentd tag in the JSON record. For instance, if you have a co
 
 ```
 <match my.logs>
-  @type elasticsearch
+  @type opensearch
   include_tag_key true
   tag_key _key
 </match>
 ```
 
-The record inserted into Elasticsearch would be
+The record inserted into OpenSearch would be
 
 ```
 {"_key": "my.logs", "name": "Johnny Doeie"}
@@ -735,16 +671,16 @@ The record inserted into Elasticsearch would be
 id_key request_id # use "request_id" field as a record id in ES
 ```
 
-By default, all records inserted into Elasticsearch get a random _id. This option allows to use a field in the record as an identifier.
+By default, all records inserted into OpenSearch get a random _id. This option allows to use a field in the record as an identifier.
 
-This following record `{"name": "Johnny", "request_id": "87d89af7daffad6"}` will trigger the following Elasticsearch command
+This following record `{"name": "Johnny", "request_id": "87d89af7daffad6"}` will trigger the following OpenSearch command
 
 ```
 { "index" : { "_index": "logstash-2013.01.01", "_type": "fluentd", "_id": "87d89af7daffad6" } }
 { "name": "Johnny", "request_id": "87d89af7daffad6" }
 ```
 
-Fluentd re-emits events that failed to be indexed/ingested in Elasticsearch with a new and unique `_id` value, this means that congested Elasticsearch clusters that reject events (due to command queue overflow, for example) will cause Fluentd to re-emit the event with a new `_id`, however Elasticsearch may actually process both (or more) attempts (with some delay) and create duplicate events in the index (since each have a unique `_id` value), one possible workaround is to use the [fluent-plugin-genhashvalue](https://github.com/mtakemi/fluent-plugin-genhashvalue) plugin to generate a unique `_hash` key in the record of each event, this `_hash` record can be used as the `id_key` to prevent Elasticsearch from creating duplicate events.
+Fluentd re-emits events that failed to be indexed/ingested in OpenSearch with a new and unique `_id` value, this means that congested OpenSearch clusters that reject events (due to command queue overflow, for example) will cause Fluentd to re-emit the event with a new `_id`, however OpenSearch may actually process both (or more) attempts (with some delay) and create duplicate events in the index (since each have a unique `_id` value), one possible workaround is to use the [fluent-plugin-genhashvalue](https://github.com/mtakemi/fluent-plugin-genhashvalue) plugin to generate a unique `_hash` key in the record of each event, this `_hash` record can be used as the `id_key` to prevent OpenSearch from creating duplicate events.
 
 ```
 id_key _hash
@@ -783,7 +719,7 @@ and the following nested record
 {"nested":{"name": "Johnny", "request_id": "87d89af7daffad6"}}
 ```
 
-will trigger the following Elasticsearch command
+will trigger the following OpenSearch command
 
 ```
 {"index":{"_index":"fluentd","_type":"fluentd","_id":"87d89af7daffad6"}}
@@ -795,7 +731,7 @@ will trigger the following Elasticsearch command
 ### parent_key
 
 ```
-parent_key a_parent # use "a_parent" field value to set _parent in elasticsearch command
+parent_key a_parent # use "a_parent" field value to set _parent in opensearch command
 ```
 
 If your input is
@@ -803,7 +739,7 @@ If your input is
 { "name": "Johnny", "a_parent": "my_parent" }
 ```
 
-Elasticsearch command would be
+OpenSearch command would be
 
 ```
 { "index" : { "_index": "****", "_type": "****", "_id": "****", "_parent": "my_parent" } }
@@ -828,7 +764,7 @@ and the following nested record
 {"nested":{ "name": "Johnny", "a_parent": "my_parent" }}
 ```
 
-will trigger the following Elasticsearch command
+will trigger the following OpenSearch command
 
 ```
 {"index":{"_index":"fluentd","_type":"fluentd","_parent":"my_parent"}}
@@ -839,19 +775,19 @@ will trigger the following Elasticsearch command
 
 ### routing_key
 
-Similar to `parent_key` config, will add `_routing` into elasticsearch command if `routing_key` is set and the field does exist in input event.
+Similar to `parent_key` config, will add `_routing` into opensearch command if `routing_key` is set and the field does exist in input event.
 
 ### remove_keys
 
 ```
 parent_key a_parent
 routing_key a_routing
-remove_keys a_parent, a_routing # a_parent and a_routing fields won't be sent to elasticsearch
+remove_keys a_parent, a_routing # a_parent and a_routing fields won't be sent to opensearch
 ```
 
 ### remove_keys_on_update
 
-Remove keys on update will not update the configured keys in elasticsearch when a record is being updated.
+Remove keys on update will not update the configured keys in opensearch when a record is being updated.
 This setting only has any effect if the write operation is update or upsert.
 
 If the write setting is upsert then these keys are only removed if the record is being
@@ -864,7 +800,7 @@ remove_keys_on_update foo,bar
 ### remove_keys_on_update_key
 
 This setting allows `remove_keys_on_update` to be configured with a key in each record, in much the same way as `target_index_key` works.
-The configured key is removed before indexing in elasticsearch. If both `remove_keys_on_update` and `remove_keys_on_update_key` is
+The configured key is removed before indexing in opensearch. If both `remove_keys_on_update` and `remove_keys_on_update_key` is
 present in the record then the keys in record are used, if the `remove_keys_on_update_key` is not present then the value of
 `remove_keys_on_update` is used as a fallback.
 
@@ -882,7 +818,7 @@ with the specified tag:
 retry_tag 'retry_es'
 ```
 **NOTE:** `retry_tag` is optional. If you would rather use labels to reroute retries, add a label (e.g '@label @SOMELABEL') to your fluent
-elasticsearch plugin configuration. Retry records are, by default, submitted for retry to the ROOT label, which means
+opensearch plugin configuration. Retry records are, by default, submitted for retry to the ROOT label, which means
 records will flow through your fluentd pipeline from the beginning.  This may nor may not be a problem if the pipeline
 is idempotent - that is - you can process a record again with no changes.  Use tagging or labeling to ensure your retry
 records are not processed again by your fluentd processing pipeline.
@@ -902,15 +838,14 @@ The write_operation can be any of:
 
 ### time_parse_error_tag
 
-With `logstash_format true`, elasticsearch plugin parses timestamp field for generating index name. If the record has invalid timestamp value, this plugin emits an error event to `@ERROR` label with `time_parse_error_tag` configured tag.
+With `logstash_format true`, opensearch plugin parses timestamp field for generating index name. If the record has invalid timestamp value, this plugin emits an error event to `@ERROR` label with `time_parse_error_tag` configured tag.
 
-Default value is `Fluent::ElasticsearchOutput::TimeParser.error` for backward compatibility. `::` separated tag is not good for tag routing because some plugins assume tag is separated by `.`. We recommend to set this parameter like `time_parse_error_tag es_plugin.output.time.error`.
-We will change default value to `.` separated tag.
+Default value is `opensearch_plugin.output.time.error`. Note that this default values is quite different from Elasticsearch plugin.
 
 ### reconnect_on_error
 Indicates that the plugin should reset connection on any error (reconnect on next send).
 By default it will reconnect only on "host unreachable exceptions".
-We recommended to set this true in the presence of elasticsearch shield.
+We recommended to set this true in the presence of opensearch shield.
 ```
 reconnect_on_error true # defaults to false
 ```
@@ -928,9 +863,9 @@ with_transporter_log true
 
 ### content_type
 
-With `content_type application/x-ndjson`, elasticsearch plugin adds `application/x-ndjson` as `Content-Type` in payload.
+With `content_type application/x-ndjson`, opensearch plugin adds `application/x-ndjson` as `Content-Type` in payload.
 
-Default value is `application/json` which is default Content-Type of Elasticsearch requests.
+Default value is `application/json` which is default Content-Type of OpenSearch requests.
 If you will not use template, it recommends to set `content_type application/x-ndjson`.
 
 ```
@@ -948,10 +883,10 @@ include_index_in_url true
 
 ### http_backend
 
-With `http_backend typhoeus`, elasticsearch plugin uses typhoeus faraday http backend.
+With `http_backend typhoeus`, opensearch plugin uses typhoeus faraday http backend.
 Typhoeus can handle HTTP keepalive.
 
-Default value is `excon` which is default http_backend of elasticsearch plugin.
+Default value is `excon` which is default http_backend of opensearch plugin.
 
 ```
 http_backend typhoeus
@@ -959,8 +894,8 @@ http_backend typhoeus
 
 ### http_backend_excon_nonblock
 
-With `http_backend_excon_nonblock false`, elasticsearch plugin use excon with nonblock=false.
-If you use elasticsearch plugin with jRuby for https, you may need to consider to set `false` to avoid follwoing problems.
+With `http_backend_excon_nonblock false`, opensearch plugin use excon with nonblock=false.
+If you use opensearch plugin with jRuby for https, you may need to consider to set `false` to avoid follwoing problems.
 - https://github.com/geemus/excon/issues/106
 - https://github.com/jruby/jruby-ossl/issues/19
 
@@ -981,9 +916,9 @@ compression_level best_compression
 
 ### prefer_oj_serializer
 
-With default behavior, Elasticsearch client uses `Yajl` as JSON encoder/decoder.
+With default behavior, OpenSearch client uses `Yajl` as JSON encoder/decoder.
 `Oj` is the alternative high performance JSON encoder/decoder.
-When this parameter sets as `true`, Elasticsearch client uses `Oj` as JSON encoder/decoder.
+When this parameter sets as `true`, OpenSearch client uses `Oj` as JSON encoder/decoder.
 
 Default value is `false`.
 
@@ -993,12 +928,12 @@ prefer_oj_serializer true
 
 ### Client/host certificate options
 
-Need to verify Elasticsearch's certificate?  You can use the following parameter to specify a CA instead of using an environment variable.
+Need to verify OpenSearch's certificate?  You can use the following parameter to specify a CA instead of using an environment variable.
 ```
 ca_file /path/to/your/ca/cert
 ```
 
-Does your Elasticsearch cluster want to verify client connections?  You can specify the following parameters to use your client certificate, key, and key password for your connection.
+Does your OpenSearch cluster want to verify client connections?  You can specify the following parameters to use your client certificate, key, and key password for your connection.
 ```
 client_cert /path/to/your/client/cert
 client_key /path/to/your/private/key
@@ -1012,21 +947,18 @@ ssl_version TLSv1_2 # or [SSLv23, TLSv1, TLSv1_1]
 
 :warning: If SSL/TLS enabled, it might have to be required to set ssl\_version.
 
-In Elasticsearch plugin v4.0.2 with Ruby 2.5 or later combination, Elasticsearch plugin also support `ssl_max_version` and `ssl_min_version`.
+In OpenSearch plugin v4.0.2 with Ruby 2.5 or later combination, OpenSearch plugin also support `ssl_max_version` and `ssl_min_version`.
 
 ```
 ssl_max_version TLSv1_3
 ssl_min_version TLSv1_2
 ```
 
-Elasticsearch plugin will use TLSv1.2 as minimum ssl version and TLSv1.3 as maximum ssl version on transportation with TLS. Note that when they are used in Elastissearch plugin configuration, *`ssl_version` is not used* to set up TLS version.
+OpenSearch plugin will use TLSv1.2 as minimum ssl version and TLSv1.3 as maximum ssl version on transportation with TLS. Note that when they are used in Elastissearch plugin configuration, *`ssl_version` is not used* to set up TLS version.
 
-If they are *not* specified in the Elasticsearch plugin configuration, `ssl_max_version` and `ssl_min_version` is set up with:
+If they are *not* specified in the OpenSearch plugin configuration, `ssl_max_version` and `ssl_min_version` is set up with:
 
-In Elasticsearch plugin v4.0.8 or later with Ruby 2.5 or later environment, `ssl_max_version` should be `TLSv1_3` and `ssl_min_version` should be `TLSv1_2`.
-
-From Elasticsearch plugin v4.0.4 to v4.0.7 with Ruby 2.5 or later environment, the value of `ssl_version` will be *used in `ssl_max_version` and `ssl_min_version`*.
-
+In OpenSearch plugin v1.0.0 or later with Ruby 2.5 or later environment, `ssl_max_version` should be `TLSv1_3` and `ssl_min_version` should be `TLSv1_2`.
 
 ### Proxy Support
 
@@ -1034,7 +966,7 @@ Starting with version 0.8.0, this gem uses excon, which supports proxy with envi
 
 ### Buffer options
 
-`fluentd-plugin-elasticsearch` extends [Fluentd's builtin Output plugin](https://docs.fluentd.org/output#overview) and use `compat_parameters` plugin helper. It adds the following options:
+`fluentd-plugin-opensearch` extends [Fluentd's builtin Output plugin](https://docs.fluentd.org/output#overview) and use `compat_parameters` plugin helper. It adds the following options:
 
 ```
 buffer_type memory
@@ -1044,7 +976,7 @@ retry_wait 1.0
 num_threads 1
 ```
 
-The value for option `buffer_chunk_limit` should not exceed value `http.max_content_length` in your Elasticsearch setup (by default it is 100mb).
+The value for option `buffer_chunk_limit` should not exceed value `http.max_content_length` in your OpenSearch setup (by default it is 100mb).
 
 **Note**: If you use or evaluate Fluentd v0.14, you can use `<buffer>` directive to specify buffer configuration, too. In more detail, please refer to the [buffer configuration options for v0.14](https://docs.fluentd.org/v0.14/articles/buffer-plugin-overview#configuration-parameters)
 
@@ -1052,50 +984,50 @@ The value for option `buffer_chunk_limit` should not exceed value `http.max_cont
 
 ### Hash flattening
 
-Elasticsearch will complain if you send object and concrete values to the same field. For example, you might have logs that look this, from different places:
+OpenSearch will complain if you send object and concrete values to the same field. For example, you might have logs that look this, from different places:
 
 {"people" => 100}
 {"people" => {"some" => "thing"}}
 
-The second log line will be rejected by the Elasticsearch parser because objects and concrete values can't live in the same field. To combat this, you can enable hash flattening.
+The second log line will be rejected by the OpenSearch parser because objects and concrete values can't live in the same field. To combat this, you can enable hash flattening.
 
 ```
 flatten_hashes true
 flatten_hashes_separator _
 ```
 
-This will produce elasticsearch output that looks like this:
+This will produce opensearch output that looks like this:
 {"people_some" => "thing"}
 
 Note that the flattener does not deal with arrays at this time.
 
 ### Generate Hash ID
 
-By default, the fluentd elasticsearch plugin does not emit records with a _id field, leaving it to Elasticsearch to generate a unique _id as the record is indexed. When an Elasticsearch cluster is congested and begins to take longer to respond than the configured request_timeout, the fluentd elasticsearch plugin will re-send the same bulk request. Since Elasticsearch can't tell its actually the same request, all documents in the request are indexed again resulting in duplicate data. In certain scenarios, this can result in essentially and infinite loop generating multiple copies of the same data.
+By default, the fluentd opensearch plugin does not emit records with a \_id field, leaving it to OpenSearch to generate a unique \_id as the record is indexed. When an OpenSearch cluster is congested and begins to take longer to respond than the configured request_timeout, the fluentd opensearch plugin will re-send the same bulk request. Since OpenSearch can't tell its actually the same request, all documents in the request are indexed again resulting in duplicate data. In certain scenarios, this can result in essentially and infinite loop generating multiple copies of the same data.
 
-The bundled elasticsearch_genid filter can generate a unique _hash key for each record, this key may be passed to the id_key parameter in the elasticsearch plugin to communicate to Elasticsearch the uniqueness of the requests so that duplicates will be rejected or simply replace the existing records.
+The bundled opensearch\_genid filter can generate a unique \_hash key for each record, this key may be passed to the id_key parameter in the opensearch plugin to communicate to OpenSearch the uniqueness of the requests so that duplicates will be rejected or simply replace the existing records.
 Here is a sample config:
 
 ```
 <filter **>
-  @type elasticsearch_genid
+  @type opensearch_genid
   hash_id_key _hash    # storing generated hash id key (default is _hash)
 </filter>
 <match **>
-  @type elasticsearch
+  @type opensearch
   id_key _hash # specify same key name which is specified in hash_id_key
-  remove_keys _hash # Elasticsearch doesn't like keys that start with _
+  remove_keys _hash # OpenSearch doesn't like keys that start with _
   # other settings are omitted.
 </match>
 ```
 
 ### Sniffer Class Name
 
-The default Sniffer used by the `Elasticsearch::Transport` class works well when Fluentd has a direct connection
-to all of the Elasticsearch servers and can make effective use of the `_nodes` API.  This doesn't work well
+The default Sniffer used by the `OpenSearch::Transport` class works well when Fluentd has a direct connection
+to all of the OpenSearch servers and can make effective use of the `_nodes` API.  This doesn't work well
 when Fluentd must connect through a load balancer or proxy.  The parameter `sniffer_class_name` gives you the
 ability to provide your own Sniffer class to implement whatever connection reload logic you require.  In addition,
-there is a new `Fluent::Plugin::ElasticsearchSimpleSniffer` class which reuses the hosts given in the configuration, which
+there is a new `Fluent::Plugin::OpenSearchSimpleSniffer` class which reuses the hosts given in the configuration, which
 is typically the hostname of the load balancer or proxy.  For example, a configuration like this would cause
 connections to `logging-es` to reload every 100 operations:
 
@@ -1103,32 +1035,32 @@ connections to `logging-es` to reload every 100 operations:
 host logging-es
 port 9200
 reload_connections true
-sniffer_class_name Fluent::Plugin::ElasticsearchSimpleSniffer
+sniffer_class_name Fluent::Plugin::OpenSearchSimpleSniffer
 reload_after 100
 ```
 
 #### Tips
 
-The included sniffer class is not required `out_elasticsearch`.
+The included sniffer class is not required `out_opensearch`.
 You should tell Fluentd where the sniffer class exists.
 
 If you use td-agent, you must put the following lines into `TD_AGENT_DEFAULT` file:
 
 ```
-sniffer=$(td-agent-gem contents fluent-plugin-elasticsearch|grep elasticsearch_simple_sniffer.rb)
+sniffer=$(td-agent-gem contents fluent-plugin-opensearch|grep opensearch_simple_sniffer.rb)
 TD_AGENT_OPTIONS="--use-v1-config -r $sniffer"
 ```
 
 If you use Fluentd directly, you must pass the following lines as Fluentd command line option:
 
 ```
-sniffer=$(td-agent-gem contents fluent-plugin-elasticsearch|grep elasticsearch_simple_sniffer.rb)
+sniffer=$(td-agent-gem contents fluent-plugin-opensearch|grep opensearch_simple_sniffer.rb)
 $ fluentd -r $sniffer [AND YOUR OTHER OPTIONS]
 ```
 
 ### Selector Class Name
 
-The default selector used by the `Elasticsearch::Transport` class works well when Fluentd should behave round robin and random selector cases. This doesn't work well when Fluentd should behave fallbacking from exhausted ES cluster to normal ES cluster.
+The default selector used by the `OpenSearch::Transport` class works well when Fluentd should behave round robin and random selector cases. This doesn't work well when Fluentd should behave fallbacking from exhausted ES cluster to normal ES cluster.
 The parameter `selector_class_name` gives you the ability to provide your own Selector class to implement whatever selection nodes logic you require.
 
 The below configuration is using plugin built-in `ElasticseatchFallbackSelector`:
@@ -1140,8 +1072,8 @@ selector_class_name "Fluent::Plugin::ElasticseatchFallbackSelector"
 
 #### Tips
 
-The included selector class is required in `out_elasticsearch` by default.
-But, your custom selector class is not required in `out_elasticsearch`.
+The included selector class is required in `out_opensearch` by default.
+But, your custom selector class is not required in `out_opensearch`.
 You should tell Fluentd where the selector class exists.
 
 If you use td-agent, you must put the following lines into `TD_AGENT_DEFAULT` file:
@@ -1165,7 +1097,7 @@ reload the connections.  The default value is 10000.
 
 ### Validate Client Version
 
-When you use mismatched Elasticsearch server and client libraries, fluent-plugin-elasticsearch cannot send data into Elasticsearch. The default value is `false`.
+When you use mismatched OpenSearch server and client libraries, fluent-plugin-opensearch cannot send data into OpenSearch. The default value is `false`.
 
 ```
 validate_client_version true
@@ -1174,44 +1106,44 @@ validate_client_version true
 ### Unrecoverable Error Types
 
 Default `unrecoverable_error_types` parameter is set up strictly.
-Because `es_rejected_execution_exception` is caused by exceeding Elasticsearch's thread pool capacity.
+Because `rejected_execution_exception` is caused by exceeding OpenSearch's thread pool capacity.
 Advanced users can increase its capacity, but normal users should follow default behavior.
 
 If you want to increase it and forcibly retrying bulk request, please consider to change `unrecoverable_error_types` parameter from default value.
 
-Change default value of `thread_pool.bulk.queue_size` in elasticsearch.yml:
+Change default value of `thread_pool.bulk.queue_size` in opensearch.yml:
 e.g.)
 
 ```yaml
 thread_pool.bulk.queue_size: 1000
 ```
 
-Then, remove `es_rejected_execution_exception` from `unrecoverable_error_types` parameter:
+Then, remove `rejected_execution_exception` from `unrecoverable_error_types` parameter:
 
 ```
 unrecoverable_error_types ["out_of_memory_error"]
 ```
 
-### verify_es_version_at_startup
+### verify_os_version_at_startup
 
-Because Elasticsearch plugin should change behavior each of Elasticsearch major versions.
+Because OpenSearch plugin will ought to change behavior each of OpenSearch major versions.
 
-For example, Elasticsearch 6 starts to prohibit multiple type_names in one index, and Elasticsearch 7 will handle only `_doc` type_name in index.
+For example, OpenSearch 1 requests to handle only `_doc` type_name in index.
 
-If you want to disable to verify Elasticsearch version at start up, set it as `false`.
+If you want to disable to verify OpenSearch version at start up, set it as `false`.
 
-When using the following configuration, ES plugin intends to communicate into Elasticsearch 6.
+When using the following configuration, OpenSearch plugin intends to communicate into OpenSearch 1.
 
 ```
-verify_es_version_at_startup false
-default_elasticsearch_version 6
+verify_os_version_at_startup false
+default_opensearch_version 1
 ```
 
 The default value is `true`.
 
-### default_elasticsearch_version
+### default_opensearch_version
 
-This parameter changes that ES plugin assumes default Elasticsearch version. The default value is `5`.
+This parameter changes that OpenSearch plugin assumes the default OpenSearch version. The default value is `1`.
 
 ### custom_headers
 
@@ -1221,24 +1153,16 @@ This parameter adds additional headers to request. The default value is `{}`.
 custom_headers {"token":"secret"}
 ```
 
-### api_key
-
-This parameter adds authentication header. The default value is `nil`.
-
-```
-api_key "ElasticsearchAPIKEY"
-```
-
 ### Not seeing a config you need?
 
 We try to keep the scope of this plugin small and not add too many configuration options. If you think an option would be useful to others, feel free to open an issue or contribute a Pull Request.
 
-Alternatively, consider using [fluent-plugin-forest](https://github.com/tagomoris/fluent-plugin-forest). For example, to configure multiple tags to be sent to different Elasticsearch indices:
+Alternatively, consider using [fluent-plugin-forest](https://github.com/tagomoris/fluent-plugin-forest). For example, to configure multiple tags to be sent to different OpenSearch indices:
 
 ```
 <match my.logs.*>
   @type forest
-  subtype elasticsearch
+  subtype opensearch
   remove_prefix my.logs
   <template>
     logstash_prefix ${tag}
@@ -1250,25 +1174,6 @@ Alternatively, consider using [fluent-plugin-forest](https://github.com/tagomori
 And yet another option is described in Dynamic Configuration section.
 
 **Note**: If you use or evaluate Fluentd v0.14, you can use builtin placeholders. In more detail, please refer to [Placeholders](#placeholders) section.
-
-### Dynamic configuration
-
-**NOTE**: *`out_elasticsearch_dynamic` will be planned to be marked as deprecated.* Please don't use the new Fluentd configuration. This plugin is maintained for backward compatibility.
-
-If you want configurations to depend on information in messages, you can use `elasticsearch_dynamic`. This is an experimental variation of the Elasticsearch plugin allows configuration values to be specified in ways such as the below:
-
-```
-<match my.logs.*>
-  @type elasticsearch_dynamic
-  hosts ${record['host1']}:9200,${record['host2']}:9200
-  index_name my_index.${Time.at(time).getutc.strftime(@logstash_dateformat)}
-  logstash_prefix ${tag_parts[3]}
-  port ${9200+rand(4)}
-  index_name ${tag_parts[2]}-${Time.at(time).getutc.strftime(@logstash_dateformat)}
-</match>
-```
-
-**Please note, this uses Ruby's `eval` for every message, so there are performance and security implications.**
 
 ### Placeholders
 
@@ -1283,7 +1188,7 @@ They are used as below:
 
 ```aconf
 <match my.logs>
-  @type elasticsearch
+  @type opensearch
   index_name elastic.${tag} #=> replaced with each event's tag. e.g.) elastic.test.tag
   <buffer tag>
     @type memory
@@ -1296,7 +1201,7 @@ They are used as below:
 
 ```aconf
 <match my.logs>
-  @type elasticsearch
+  @type opensearch
   index_name elastic.%Y%m%d #=> e.g.) elastic.20170811
   <buffer tag, time>
     @type memory
@@ -1314,7 +1219,7 @@ records = {key1: "value1", key2: "value2"}
 
 ```aconf
 <match my.logs>
-  @type elasticsearch
+  @type opensearch
   index_name elastic.${key1}.${key2} # => e.g.) elastic.value1.value2
   <buffer tag, key1, key2>
     @type memory
@@ -1333,9 +1238,9 @@ Since Fluentd v0.14, multi workers feature had been implemented to increase thro
 </system>
 ```
 
-## log_es_400_reason
+## log_os_400_reason
 
-By default, the error logger won't record the reason for a 400 error from the Elasticsearch API unless you set log_level to debug. However, this results in a lot of log spam, which isn't desirable if all you want is the 400 error reasons. You can set this `true` to capture the 400 error reasons without all the other debug logs.
+By default, the error logger won't record the reason for a 400 error from the OpenSearch API unless you set log_level to debug. However, this results in a lot of log spam, which isn't desirable if all you want is the 400 error reasons. You can set this `true` to capture the 400 error reasons without all the other debug logs.
 
 Default value is `false`.
 
@@ -1350,10 +1255,10 @@ Default value is `false`.
 A list of exception that will be ignored - when the exception occurs the chunk will be discarded and the buffer retry mechanism won't be called. It is possible also to specify classes at higher level in the hierarchy. For example
 
 ```
-ignore_exceptions ["Elasticsearch::Transport::Transport::ServerError"]
+ignore_exceptions ["OpenSearch::Transport::Transport::ServerError"]
 ```
 
-will match all subclasses of `ServerError` - `Elasticsearch::Transport::Transport::Errors::BadRequest`, `Elasticsearch::Transport::Transport::Errors::ServiceUnavailable`, etc.
+will match all subclasses of `ServerError` - `OpenSearch::Transport::Transport::Errors::BadRequest`, `OpenSearch::Transport::Transport::Errors::ServiceUnavailable`, etc.
 
 Default value is empty list (no exception is ignored).
 
@@ -1371,46 +1276,6 @@ Default value is `-1`(unlimited).
 
 If you specify this size as negative number, `bulk_message` request splitting feature will be disabled.
 
-## enable_ilm
-
-Enable Index Lifecycle Management (ILM).
-
-Default value is `false`.
-
-**NOTE:** This parameter requests to install elasticsearch-xpack gem.
-
-## ilm_policy_id
-
-Specify ILM policy id.
-
-Default value is `logstash-policy`.
-
-**NOTE:** This parameter requests to install elasticsearch-xpack gem.
-
-## ilm_policy
-
-Specify ILM policy contents as Hash.
-
-Default value is `{}`.
-
-**NOTE:** This parameter requests to install elasticsearch-xpack gem.
-
-## ilm_policies
-
-A hash in the format `{"ilm_policy_id1":{ <ILM policy 1 hash> }, "ilm_policy_id2": { <ILM policy 2 hash> }}`.
-
-Default value is `{}`.
-
-**NOTE:** This parameter requests to install elasticsearch-xpack gem.
-
-## ilm_policy_overwrite
-
-Specify whether overwriting ilm policy or not.
-
-Default value is `false`.
-
-**NOTE:** This parameter requests to install elasticsearch-xpack gem.
-
 ## truncate_caches_interval
 
 Specify truncating caches interval.
@@ -1423,13 +1288,9 @@ Default value is `nil`.
 
 Use legacy template or not.
 
-For Elasticsearch 7.8 or later, users can specify this parameter as `false` if their [template_file](#template_file) contains a composable index template.
+Composable template documentation is [Put Index Template API | OpenSearch Reference](https://opensearch.org/docs/latest/opensearch/index-templates/). OpenSearch still supports legacy template but we recommend to migrate to use Composable template.
 
-For Elasticsearch 7.7 or older, users should specify this parameter as `true`.
-
-Composable template documentation is [Put Index Template API | Elasticsearch Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/index-templates.html) and legacy template documentation is [Index Templates | Elasticsearch Reference](https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-templates-v1.html).
-
-Please confirm that whether the using Elasticsearch cluster(s) support the composable template feature or not when turn on the brand new feature with this parameter.
+Please confirm that whether the using OpenSearch cluster(s) support the composable template feature or not when turn on the brand new feature with this parameter.
 
 ## <metadata\> section
 
@@ -1437,7 +1298,7 @@ Users can specify whether including `chunk_id` information into records or not:
 
 ```aconf
 <match your.awesome.routing.tag>
-  @type elasticsearch
+  @type opensearch
   # Other configurations.
   <metadata>
     include_chunk_id true
@@ -1452,7 +1313,7 @@ Whether including `chunk_id` for not. Default value is `false`.
 
 ```aconf
 <match your.awesome.routing.tag>
-  @type elasticsearch
+  @type opensearch
   # Other configurations.
   <metadata>
     include_chunk_id true
@@ -1467,7 +1328,7 @@ Specify `chunk_id_key` to store `chunk_id` information into records. Default val
 
 ```aconf
 <match your.awesome.routing.tag>
-  @type elasticsearch
+  @type opensearch
   # Other configurations.
   <metadata>
     include_chunk_id
@@ -1476,62 +1337,38 @@ Specify `chunk_id_key` to store `chunk_id` information into records. Default val
 </match>
 ```
 
-## Configuration - Elasticsearch Input
+## Configuration - OpenSearch Input
 
-See [Elasticsearch Input plugin document](README.ElasticsearchInput.md)
+See [OpenSearch Input plugin document](README.OpenSearchInput.md)
 
-## Configuration - Elasticsearch Filter GenID
+## Configuration - OpenSearch Filter GenID
 
-See [Elasticsearch Filter GenID document](README.ElasticsearchGenID.md)
+See [OpenSearch Filter GenID document](README.OpenSearchGenID.md)
 
-## Elasticsearch permissions
+## Configuration - OpenSearch Output Data Stream
 
-If the target Elasticsearch requires authentication, a user holding the necessary permissions needs to be provided.
+Since Elasticsearch 7.9 that is predessor software of OpenSearch, Data Streams was introduced.
 
-The set of required permissions are the following:
+**NOTE:** This feature is slated to support. Currently, this fetaure is not supported yet.
 
-```json
-  "cluster": ["manage_index_templates", "monitor", "manage_ilm"],
-  "indices": [
-    {
-      "names": [ "*" ],
-      "privileges": ["write","create","delete","create_index","manage","manage_ilm"]
-    }
-  ]
-```
-
-These permissions can be narrowed down by:
-
-- Setting a more specific pattern for indices under the `names` field
-- Removing the `manage_index_templates` cluster permission when not using the feature within your plugin configuration
-- Removing the `manage_ilm` cluster permission and the `manage` and `manage_ilm` indices privileges when not using ilm
-features in the plugin configuration
-
-The list of privileges along with their description can be found in
-[security privileges](https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html).
-
-## Configuration - Elasticsearch Output Data Stream
-
-Since Elasticsearch 7.9, Data Streams was introduced.
-
-You can enable this feature by specifying `@type elasticsearch_data_stream`.
+You can enable this feature by specifying `@type opensearch_data_stream`.
 
 ```
-@type elasticsearch_data_stream
+@type opensearch_data_stream
 data_stream_name test
 ```
 
-When `@type elasticsearch_data_stream` is used, unless specified with `data_stream_ilm_name` and `data_stream_template_name`, ILM default policy is set to the specified data stream.
+When `@type opensearch_data_stream` is used, unless specified with `data_stream_ilm_name` and `data_stream_template_name`, ILM default policy is set to the specified data stream.
 Then, the matching index template is also created automatically.
 
 ### data_stream_name
 
-You can specify Elasticsearch data stream name by this parameter.
-This parameter is mandatory for `elasticsearch_data_stream`.
+You can specify OpenSearch data stream name by this parameter.
+This parameter is mandatory for `opensearch_data_stream`.
 
 ### data_stream_template_name
 
-You can specify an existing matching index template for the data stream. If not present, it creates a new matching index template. 
+You can specify an existing matching index template for the data stream. If not present, it creates a new matching index template.
 
 Default value is `data_stream_name`.
 
@@ -1543,7 +1380,7 @@ Default value is `data_stream_name`.
 
 There are some limitations about naming rule.
 
-In more detail, please refer to the [Path parameters](https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-create-data-stream.html#indices-create-data-stream-api-path-params).
+In more detail, please refer to the [Path parameters](https://www.elastic.co/guide/en/opensearch/reference/master/indices-create-data-stream.html#indices-create-data-stream-api-path-params).
 
 ## Troubleshooting
 
@@ -1551,17 +1388,15 @@ See [Troubleshooting document](README.Troubleshooting.md)
 
 ## Contact
 
-If you have a question, [open an Issue](https://github.com/uken/fluent-plugin-elasticsearch/issues).
+If you have a question, [open an Issue](https://github.com/fluent/fluent-plugin-opensearch/issues).
 
 ## Contributing
 
-There are usually a few feature requests, tagged [Easy](https://github.com/uken/fluent-plugin-elasticsearch/issues?q=is%3Aissue+is%3Aopen+label%3Alevel%3AEasy), [Normal](https://github.com/uken/fluent-plugin-elasticsearch/issues?q=is%3Aissue+is%3Aopen+label%3Alevel%3ANormal) and [Hard](https://github.com/uken/fluent-plugin-elasticsearch/issues?q=is%3Aissue+is%3Aopen+label%3Alevel%3AHard). Feel free to work on any one of them.
+There are usually a few feature requests, tagged [Easy](https://github.com/fluent/fluent-plugin-opensearch/issues?q=is%3Aissue+is%3Aopen+label%3Alevel%3AEasy), [Normal](https://github.com/fluent/fluent-plugin-opensearch/issues?q=is%3Aissue+is%3Aopen+label%3Alevel%3ANormal) and [Hard](https://github.com/fluent/fluent-plugin-opensearch/issues?q=is%3Aissue+is%3Aopen+label%3Alevel%3AHard). Feel free to work on any one of them.
 
 Pull Requests are welcomed.
 
 Becore send a pull request or report an issue, please read [the contribution guideline](CONTRIBUTING.md).
-
-[![Pull Request Graph](https://graphs.waffle.io/uken/fluent-plugin-elasticsearch/throughput.svg)](https://waffle.io/uken/fluent-plugin-elasticsearch/metrics)
 
 ## Running tests
 
@@ -1572,6 +1407,6 @@ $ gem install bundler
 $ bundle install
 $ bundle exec rake test
 # To just run the test you are working on:
-$ bundle exec rake test TEST=test/plugin/test_out_elasticsearch.rb TESTOPTS='--verbose --name=test_custom_template_with_rollover_index_create_and_custom_ilm'
+$ bundle exec rake test TEST=test/plugin/test_out_opensearch.rb TESTOPTS='--verbose --name=test_bulk_error_retags_with_error_when_configured_and_fullfilled_buffer'
 
 ```

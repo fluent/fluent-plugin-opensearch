@@ -1,7 +1,7 @@
 require 'fluent/error'
-require_relative './elasticsearch_error'
+require_relative './opensearch_error'
 
-module Fluent::ElasticsearchIndexTemplate
+module Fluent::OpenSearchIndexTemplate
   def get_template(template_file)
     if !File.exists?(template_file)
       raise "If you specify a template_name you must specify a valid template file (checked '#{template_file}')!"
@@ -28,26 +28,18 @@ module Fluent::ElasticsearchIndexTemplate
       client(host).indices.get_index_template(:name => name)
     end
     return true
-  rescue Elasticsearch::Transport::Transport::Errors::NotFound
+  rescue OpenSearch::Transport::Transport::Errors::NotFound
     return false
   end
 
   def host_unreachable_exceptions
-    if Gem::Version.new(::Elasticsearch::Transport::VERSION) >= Gem::Version.new("7.14.0")
-      # elasticsearch-ruby 7.14.0's elasticsearch-transport does not extends
-      # Elasticsearch class on Transport.
-      # This is why #host_unreachable_exceptions is not callable directly
-      # via transport (not transport's transport instance accessor) any more.
-      client.transport.transport.host_unreachable_exceptions
-    else
-      client.transport.host_unreachable_exceptions
-    end
+    client.transport.transport.host_unreachable_exceptions
   end
 
   def retry_operate(max_retries, fail_on_retry_exceed = true, catch_trasport_exceptions = true)
     return unless block_given?
     retries = 0
-    transport_errors = Elasticsearch::Transport::Transport::Errors.constants.map{ |c| Elasticsearch::Transport::Transport::Errors.const_get c } if catch_trasport_exceptions
+    transport_errors = OpenSearch::Transport::Transport::Errors.constants.map{ |c| OpenSearch::Transport::Transport::Errors.const_get c } if catch_trasport_exceptions
     begin
       yield
     rescue *host_unreachable_exceptions, *transport_errors, Timeout::Error => e
@@ -57,13 +49,13 @@ module Fluent::ElasticsearchIndexTemplate
         retries += 1
         wait_seconds = 2**retries
         sleep wait_seconds
-        log.warn "Could not communicate to Elasticsearch, resetting connection and trying again. #{e.message}"
+        log.warn "Could not communicate to OpenSearch, resetting connection and trying again. #{e.message}"
         log.warn "Remaining retry: #{max_retries - retries}. Retry to communicate after #{wait_seconds} second(s)."
         retry
       end
-      message = "Could not communicate to Elasticsearch after #{retries} retries. #{e.message}"
+      message = "Could not communicate to OpenSearch after #{retries} retries. #{e.message}"
       log.warn message
-      raise Fluent::Plugin::ElasticsearchError::RetryableOperationExhaustedFailure,
+      raise Fluent::Plugin::OpenSearchError::RetryableOperationExhaustedFailure,
             message if fail_on_retry_exceed
     end
   end
@@ -78,7 +70,7 @@ module Fluent::ElasticsearchIndexTemplate
 
   def indexcreation(index_name, host = nil)
     client(host).indices.create(:index => index_name)
-  rescue Elasticsearch::Transport::Transport::Error => e
+  rescue OpenSearch::Transport::Transport::Error => e
     if e.message =~ /"already exists"/ || e.message =~ /resource_already_exists_exception/
       log.debug("Index #{index_name} already exists")
     else

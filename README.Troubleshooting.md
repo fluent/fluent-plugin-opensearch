@@ -1,56 +1,51 @@
 ## Index
 
 * [Troubleshooting](#troubleshooting)
-  + [Cannot send events to elasticsearch](#cannot-send-events-to-elasticsearch)
+  + [Cannot send events to opensearch](#cannot-send-events-to-opensearch)
   + [Cannot see detailed failure log](#cannot-see-detailed-failure-log)
   + [Cannot connect TLS enabled reverse Proxy](#cannot-connect-tls-enabled-reverse-proxy)
   + [Declined logs are resubmitted forever, why?](#declined-logs-are-resubmitted-forever-why)
   + [Suggested to install typhoeus gem, why?](#suggested-to-install-typhoeus-gem-why)
-  + [Stopped to send events on k8s, why?](#stopped-to-send-events-on-k8s-why)
-  + [Random 400 - Rejected by Elasticsearch is occured, why?](#random-400---rejected-by-elasticsearch-is-occured-why)
-  + [Fluentd seems to hang if it unable to connect Elasticsearch, why?](#fluentd-seems-to-hang-if-it-unable-to-connect-elasticsearch-why)
-  + [Enable Index Lifecycle Management](#enable-index-lifecycle-management)
-    + [Configuring for dynamic index or template](#configuring-for-dynamic-index-or-template)
+  + [Random 400 - Rejected by OpenSearch is occured, why?](#random-400---rejected-by-opensearch-is-occured-why)
+  + [Fluentd seems to hang if it unable to connect OpenSearch, why?](#fluentd-seems-to-hang-if-it-unable-to-connect-opensearch-why)
   + [How to specify index codec](#how-to-specify-index-codec)
-  + [Cannot push logs to Elasticsearch with connect_write timeout reached, why?](#cannot-push-logs-to-elasticsearch-with-connect_write-timeout-reached-why)
+  + [Cannot push logs to OpenSearch with connect_write timeout reached, why?](#cannot-push-logs-to-opensearch-with-connect_write-timeout-reached-why)
 
 
 ## Troubleshooting
 
-### Cannot send events to Elasticsearch
+### Cannot send events to OpenSearch
 
-A common cause of failure is that you are trying to connect to an Elasticsearch instance with an incompatible version.
+A common cause of failure is that you are trying to connect to an OpenSearch instance with an incompatible version.
 
-For example, td-agent currently bundles the 6.x series of the [elasticsearch-ruby](https://github.com/elastic/elasticsearch-ruby) library. This means that your Elasticsearch server also needs to be 6.x. You can check the actual version of the client library installed on your system by executing the following command.
+You can check the actual version of the client library installed on your system by executing the following command.
 
 ```
 # For td-agent users
-$ /usr/sbin/td-agent-gem list elasticsearch
+$ /usr/sbin/td-agent-gem list opensearch
 # For standalone Fluentd users
-$ fluent-gem list elasticsearch
+$ fluent-gem list opensearch
 ```
-Or, fluent-plugin-elasticsearch v2.11.7 or later, users can inspect version incompatibility with the `validate_client_version` option:
+Or, fluent-plugin-opensearch v0.1.0 or later, users can inspect version incompatibility with the `validate_client_version` option:
 
 ```
 validate_client_version true
 ```
 
-If you get the following error message, please consider to install compatible elasticsearch client gems:
+If you get the following error message, please consider to install compatible opensearch client gems:
 
 ```
-Detected ES 5 but you use ES client 6.1.0.
-Please consider to use 5.x series ES client.
+Detected OpenSearch 1 but you use OpenSearch client 2.0.0.
+Please consider to use 1.x series OpenSearch client.
 ```
-
-For further details of the version compatibility issue, please read [the official manual](https://github.com/elastic/elasticsearch-ruby#compatibility).
 
 ### Cannot see detailed failure log
 
-A common cause of failure is that you are trying to connect to an Elasticsearch instance with an incompatible ssl protocol version.
+A common cause of failure is that you are trying to connect to an OpenSearch instance with an incompatible ssl protocol version.
 
-For example, `out_elasticsearch` set up ssl_version to TLSv1 due to historical reason.
-Modern Elasticsearch ecosystem requests to communicate with TLS v1.2 or later.
-But, in this case, `out_elasticsearch` conceals transporter part failure log by default.
+For example, `out_opensearch` set up ssl_version to TLSv1 due to historical reason.
+Modern OpenSearch ecosystem requests to communicate with TLS v1.2 or later.
+But, in this case, `out_opensearch` conceals transporter part failure log by default.
 If you want to acquire transporter log, please consider to set the following configuration:
 
 ```
@@ -61,7 +56,7 @@ with_transporter_log true
 Then, the following log is shown in Fluentd log:
 
 ```
-2018-10-24 10:00:00 +0900 [error]: #0 [Faraday::ConnectionFailed] SSL_connect returned=1 errno=0 state=SSLv2/v3 read server hello A: unknown protocol (OpenSSL::SSL::SSLError) {:host=>"elasticsearch-host", :port=>80, :scheme=>"https", :user=>"elastic", :password=>"changeme", :protocol=>"https"}
+2018-10-24 10:00:00 +0900 [error]: #0 [Faraday::ConnectionFailed] SSL_connect returned=1 errno=0 state=SSLv2/v3 read server hello A: unknown protocol (OpenSSL::SSL::SSLError) {:host=>"opensearch-host", :port=>80, :scheme=>"https", :user=>"elastic", :password=>"changeme", :protocol=>"https"}
 ```
 
 This indicates that inappropriate TLS protocol version is used.
@@ -80,11 +75,11 @@ ssl_min_version TLSv1_2
 
 ### Cannot connect TLS enabled reverse Proxy
 
-A common cause of failure is that you are trying to connect to an Elasticsearch instance behind nginx reverse proxy which uses an incompatible ssl protocol version.
+A common cause of failure is that you are trying to connect to an OpenSearch instance behind nginx reverse proxy which uses an incompatible ssl protocol version.
 
-For example, `out_elasticsearch` set up ssl_version to TLSv1 due to historical reason.
+For example, `out_opensearch` set up ssl_version to TLSv1 due to historical reason.
 Nowadays, nginx reverse proxy uses TLS v1.2 or later for security reason.
-But, in this case, `out_elasticsearch` conceals transporter part failure log by default.
+But, in this case, `out_opensearch` conceals transporter part failure log by default.
 
 If you set up nginx reverse proxy with TLS v1.2:
 
@@ -161,7 +156,7 @@ Then, the following log is shown in Fluentd log:
 2018-10-31 10:00:57 +0900 [error]: #7 [Faraday::ConnectionFailed] Connection reset by peer - SSL_connect (Errno::ECONNRESET) {:host=>"<ES-Host>", :port=>9400, :scheme=>"https", :protocol=>"https"}
 ```
 
-The above logs indicates that using incompatible SSL/TLS version between fluent-plugin-elasticsearch and nginx, which is reverse proxy, is root cause of this issue.
+The above logs indicates that using incompatible SSL/TLS version between fluent-plugin-opensearch and nginx, which is reverse proxy, is root cause of this issue.
 
 If you want to use TLS v1.2, please use `ssl_version` parameter like as:
 
@@ -182,7 +177,7 @@ Sometimes users write Fluentd configuration like this:
 
 ```aconf
 <match **>
-  @type elasticsearch
+  @type opensearch
   host localhost
   port 9200
   type_name fluentd
@@ -200,13 +195,13 @@ The above configuration does not use [`@label` feature](https://docs.fluentd.org
 It is usually problematic configuration.
 
 In error scenario, error events will be emitted with `@ERROR` label, and `fluent.*` tag.
-The black hole glob pattern resubmits a problematic event into pushing Elasticsearch pipeline.
+The black hole glob pattern resubmits a problematic event into pushing OpenSearch pipeline.
 
 This situation causes flood of declined log:
 
 ```log
-2018-11-13 11:16:27 +0000 [warn]: #0 dump an error event: error_class=Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchError error="400 - Rejected by Elasticsearch" location=nil tag="app.fluentcat" time=2018-11-13 11:16:17.492985640 +0000 record={"message"=>"\xFF\xAD"}
-2018-11-13 11:16:38 +0000 [warn]: #0 dump an error event: error_class=Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchError error="400 - Rejected by Elasticsearch" location=nil tag="fluent.warn" time=2018-11-13 11:16:27.978851140 +0000 record={"error"=>"#<Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchError: 400 - Rejected by Elasticsearch>", "location"=>nil, "tag"=>"app.fluentcat", "time"=>2018-11-13 11:16:17.492985640 +0000, "record"=>{"message"=>"\xFF\xAD"}, "message"=>"dump an error event: error_class=Fluent::Plugin::ElasticsearchErrorHandler::ElasticsearchError error=\"400 - Rejected by Elasticsearch\" location=nil tag=\"app.fluentcat\" time=2018-11-13 11:16:17.492985640 +0000 record={\"message\"=>\"\\xFF\\xAD\"}"}
+2018-11-13 11:16:27 +0000 [warn]: #0 dump an error event: error_class=Fluent::Plugin::OpenSearchErrorHandler::OpenSearchError error="400 - Rejected by OpenSearch" location=nil tag="app.fluentcat" time=2018-11-13 11:16:17.492985640 +0000 record={"message"=>"\xFF\xAD"}
+2018-11-13 11:16:38 +0000 [warn]: #0 dump an error event: error_class=Fluent::Plugin::OpenSearchErrorHandler::OpenSearchError error="400 - Rejected by OpenSearch" location=nil tag="fluent.warn" time=2018-11-13 11:16:27.978851140 +0000 record={"error"=>"#<Fluent::Plugin::OpenSearchErrorHandler::OpenSearchError: 400 - Rejected by OpenSearch>", "location"=>nil, "tag"=>"app.fluentcat", "time"=>2018-11-13 11:16:17.492985640 +0000, "record"=>{"message"=>"\xFF\xAD"}, "message"=>"dump an error event: error_class=Fluent::Plugin::OpenSearchErrorHandler::OpenSearchError error=\"400 - Rejected by OpenSearch\" location=nil tag=\"app.fluentcat\" time=2018-11-13 11:16:17.492985640 +0000 record={\"message\"=>\"\\xFF\\xAD\"}"}
 ```
 
 Then, user should use more concrete tag route or use `@label`.
@@ -218,8 +213,8 @@ One is using concrete tag routing, the other is using label routing.
 The following configuration uses concrete tag route:
 
 ```aconf
-<match out.elasticsearch.**>
-  @type elasticsearch
+<match out.opensearch.**>
+  @type opensearch
   host localhost
   port 9200
   type_name fluentd
@@ -243,8 +238,8 @@ The following configuration uses label:
   @label @ES
 </source>
 <label @ES>
-  <match out.elasticsearch.**>
-    @type elasticsearch
+  <match out.opensearch.**>
+    @type opensearch
     host localhost
     port 9200
     type_name fluentd
@@ -266,7 +261,7 @@ The following configuration uses label:
 
 ### Suggested to install typhoeus gem, why?
 
-fluent-plugin-elasticsearch doesn't depend on typhoeus gem by default.
+fluent-plugin-opensearch doesn't depend on typhoeus gem by default.
 If you want to use typhoeus backend, you must install typhoeus gem by your own.
 
 If you use vanilla Fluentd, you can install it by:
@@ -283,33 +278,9 @@ td-agent-gem install typhoeus
 
 In more detail, please refer to [the official plugin management document](https://docs.fluentd.org/v1.0/articles/plugin-management).
 
-### Stopped to send events on k8s, why?
+### Random 400 - Rejected by OpenSearch is occured, why?
 
-fluent-plugin-elasticsearch reloads connection after 10000 requests. (Not correspond to events counts because ES plugin uses bulk API.)
-
-This functionality which is originated from elasticsearch-ruby gem is enabled by default.
-
-Sometimes this reloading functionality bothers users to send events with ES plugin.
-
-On k8s platform, users sometimes shall specify the following settings:
-
-```aconf
-reload_connections false
-reconnect_on_error true
-reload_on_failure true
-```
-
-If you use [fluentd-kubernetes-daemonset](https://github.com/fluent/fluentd-kubernetes-daemonset), you can specify them with environment variables:
-
-* `FLUENT_ELASTICSEARCH_RELOAD_CONNECTIONS` as `false`
-* `FLUENT_ELASTICSEARCH_RECONNECT_ON_ERROR` as `true`
-* `FLUENT_ELASTICSEARCH_RELOAD_ON_FAILURE` as `true`
-
-This issue had been reported at [#525](https://github.com/uken/fluent-plugin-elasticsearch/issues/525).
-
-### Random 400 - Rejected by Elasticsearch is occured, why?
-
-Index templates installed Elasticsearch sometimes generates 400 - Rejected by Elasticsearch errors.
+Index templates installed OpenSearch sometimes generates 400 - Rejected by OpenSearch errors.
 For example, kubernetes audit log has structure:
 
 ```json
@@ -393,10 +364,10 @@ For unstable `responseObject` and `requestObject` key existence case.
 
 Normalize `responseObject` and `requestObject` key with record_transformer and other similiar plugins is needed.
 
-### Fluentd seems to hang if it unable to connect Elasticsearch, why?
+### Fluentd seems to hang if it unable to connect OpenSearch, why?
 
-On `#configure` phase, ES plugin should wait until ES instance communication is succeeded.
-And ES plugin blocks to launch Fluentd by default.
+On `#configure` phase, OpenSearch plugin should wait until OpenSearch instance communication is succeeded.
+And OpenSearch plugin blocks to launch Fluentd by default.
 Because Fluentd requests to set up configuration correctly on `#configure` phase.
 
 After `#configure` phase, it runs very fast and send events heavily in some heavily using case.
@@ -408,217 +379,24 @@ To remove too pessimistic behavior, you can use the following configuration:
 
 ```aconf
 <match **>
-  @type elasticsearch
-  # Some advanced users know their using ES version.
-  # We can disable startup ES version checking.
-  verify_es_version_at_startup false
-  # If you know that your using ES major version is 7, you can set as 7 here.
-  default_elasticsearch_version 7
-  # If using very stable ES cluster, you can reduce retry operation counts. (minmum is 1)
-  max_retry_get_es_version 1
-  # If using very stable ES cluster, you can reduce retry operation counts. (minmum is 1)
+  @type opensearch
+  # Some advanced users know their using OpenSearch version.
+  # We can disable startup OpenSearch version checking.
+  verify_os_version_at_startup false
+  # If you know that your using OpenSearch major version is 7, you can set as 7 here.
+  default_opensearch_version 1
+  # If using very stable OpenSearch cluster, you can reduce retry operation counts. (minmum is 1)
+  max_retry_get_os_version 1
+  # If using very stable OpenSearch cluster, you can reduce retry operation counts. (minmum is 1)
   max_retry_putting_template 1
-  # ... and some ES plugin configuration
+  # ... and some OpenSearch plugin configuration
 </match>
 ```
-
-### Enable Index Lifecycle Management
-
-Index lifecycle management is template based index management feature.
-
-Main ILM feature parameters are:
-
-* `index_name` (when logstash_format as false)
-* `logstash_prefix` (when logstash_format as true)
-* `enable_ilm`
-* `ilm_policy_id`
-* `ilm_policy`
-
-* Advanced usage parameters
-  * `application_name`
-  * `index_separator`
-
-They are not all mandatory parameters but they are used for ILM feature in effect.
-
-ILM target index alias is created with `index_name` or an index which is calculated from `logstash_prefix`.
-
-From Elasticsearch plugin v4.0.0, ILM target index will be calculated from `index_name` (normal mode) or `logstash_prefix` (using with `logstash_format`as true).
-
-**NOTE:** Before Elasticsearch plugin v4.1.0, using `deflector_alias` parameter when ILM is enabled is permitted and handled, but, in the later releases such that 4.1.1 or later, it cannot use with when ILM is enabled.
-
-And also, ILM feature users should specify their Elasticsearch template for ILM enabled indices.
-Because ILM settings are injected into their Elasticsearch templates.
-
-`application_name` and `index_separator` also affect alias index names.
-
-But this parameter is prepared for advanced usage.
-
-It usually should be used with default value which is `default`.
-
-Then, ILM parameters are used in alias index like as:
-
-##### Simple `index_name` case:
-
-`<index_name><index_separator><application_name>-000001`.
-
-##### `logstash_format` as `true` case:
-
-`<logstash_prefix><logstash_prefix_separator><application_name><logstash_prefix_separator><logstash_dateformat>-000001`.
-
-#### Example ILM settings
-
-```aconf
-index_name fluentd-${tag}
-application_name ${tag}
-index_date_pattern "now/d"
-enable_ilm true
-# Policy configurations
-ilm_policy_id fluentd-policy
-# ilm_policy {} # Use default policy
-template_name your-fluentd-template
-template_file /path/to/fluentd-template.json
-# customize_template {"<<index_prefix>>": "fluentd"}
-```
-
-Note: This plugin only creates rollover-enabled indices, which are aliases pointing to them and index templates, and creates an ILM policy if enabled.
-
-#### Create ILM indices in each day
-
-If you want to create new index in each day, you should use `logstash_format` style configuration:
-
-```aconf
-logstash_prefix fluentd
-application_name default
-index_date_pattern "now/d"
-enable_ilm true
-# Policy configurations
-ilm_policy_id fluentd-policy
-# ilm_policy {} # Use default policy
-template_name your-fluentd-template
-template_file /path/to/fluentd-template.json
-```
-
-Note that if you create a new set of indexes every day, the elasticsearch ILM policy system will treat each day separately and will always
-maintain a separate active write index for each day.
-
-If you have a rollover based on max_age, it will continue to roll the indexes for prior dates even if no new documents are indexed.  If you want
-to delete indexes after a period of time, the ILM policy will never delete the current write index regardless of its age, so you would need a separate
-system, such as curator, to actually delete the old indexes.
-
-For this reason, if you put the date into the index names with ILM you should only rollover based on size or number of documents and may need to use
-curator to actually delete old indexes.
-
-#### Fixed ILM indices
-
-Also, users can use fixed ILM indices configuration.
-If `index_date_pattern` is set as `""`(empty string), Elasticsearch plugin won't attach date pattern in ILM indices:
-
-```aconf
-index_name fluentd
-application_name default
-index_date_pattern ""
-enable_ilm true
-# Policy configurations
-ilm_policy_id fluentd-policy
-# ilm_policy {} # Use default policy
-template_name your-fluentd-template
-template_file /path/to/fluentd-template.json
-```
-
-#### Configuring for dynamic index or template
-
-Some users want to setup ILM for dynamic index/template.
-`index_petterns` and `template.settings.index.lifecycle.name` in Elasticsearch template will be overwritten by Elasticsearch plugin:
-
-```json
-{
-  "index_patterns": ["mock"],
-  "template": {
-    "settings": {
-      "index": {
-        "lifecycle": {
-          "name": "mock",
-          "rollover_alias": "mock"
-        },
-        "number_of_shards": "<<shard>>",
-        "number_of_replicas": "<<replica>>"
-      }
-    }
-  }
-}
-```
-
-This template will be handled with:
-
-```aconf
-<source>
-  @type http
-  port 5004
-  bind 0.0.0.0
-  body_size_limit 32m
-  keepalive_timeout 10s
-  <parse>
-    @type json
-  </parse>
-</source>
-
-<match kubernetes.var.log.containers.**etl-webserver**.log>
-    @type elasticsearch
-    @id out_es_etl_webserver
-    @log_level info
-    include_tag_key true
-    host $HOST
-    port $PORT
-    path "#{ENV['FLUENT_ELASTICSEARCH_PATH']}"
-    request_timeout "#{ENV['FLUENT_ELASTICSEARCH_REQUEST_TIMEOUT'] || '30s'}"
-    scheme "#{ENV['FLUENT_ELASTICSEARCH_SCHEME'] || 'http'}"
-    ssl_verify "#{ENV['FLUENT_ELASTICSEARCH_SSL_VERIFY'] || 'true'}"
-    ssl_version "#{ENV['FLUENT_ELASTICSEARCH_SSL_VERSION'] || 'TLSv1'}"
-    reload_connections "#{ENV['FLUENT_ELASTICSEARCH_RELOAD_CONNECTIONS'] || 'false'}"
-    reconnect_on_error "#{ENV['FLUENT_ELASTICSEARCH_RECONNECT_ON_ERROR'] || 'true'}"
-    reload_on_failure "#{ENV['FLUENT_ELASTICSEARCH_RELOAD_ON_FAILURE'] || 'true'}"
-    log_es_400_reason "#{ENV['FLUENT_ELASTICSEARCH_LOG_ES_400_REASON'] || 'false'}"
-    logstash_prefix "#{ENV['FLUENT_ELASTICSEARCH_LOGSTASH_PREFIX'] || 'etl-webserver'}"
-    logstash_format "#{ENV['FLUENT_ELASTICSEARCH_LOGSTASH_FORMAT'] || 'false'}"
-    index_name "#{ENV['FLUENT_ELASTICSEARCH_LOGSTASH_INDEX_NAME'] || 'etl-webserver'}"
-    type_name "#{ENV['FLUENT_ELASTICSEARCH_LOGSTASH_TYPE_NAME'] || 'fluentd'}"
-    time_key "#{ENV['FLUENT_ELASTICSEARCH_TIME_KEY'] || '@timestamp'}"
-    include_timestamp "#{ENV['FLUENT_ELASTICSEARCH_INCLUDE_TIMESTAMP'] || 'true'}"
-
-    # ILM Settings - WITH ROLLOVER support
-    # https://github.com/uken/fluent-plugin-elasticsearch#enable-index-lifecycle-management
-    application_name "etl-webserver"
-    index_date_pattern ""
-    # Policy configurations
-    enable_ilm true
-    ilm_policy_id etl-webserver
-    ilm_policy_overwrite true
-    ilm_policy {"policy": {"phases": {"hot": {"min_age": "0ms","actions": {"rollover": {"max_age": "5m","max_size": "3gb"},"set_priority": {"priority": 100}}},"delete": {"min_age": "30d","actions": {"delete": {"delete_searchable_snapshot": true}}}}}}
-    use_legacy_template false
-    template_name etl-webserver
-    template_file /configs/index-template.json
-    template_overwrite true
-    customize_template {"<<shard>>": "3","<<replica>>": "0"}
-
-    <buffer>
-        flush_thread_count "#{ENV['FLUENT_ELASTICSEARCH_BUFFER_FLUSH_THREAD_COUNT'] || '8'}"
-        flush_interval "#{ENV['FLUENT_ELASTICSEARCH_BUFFER_FLUSH_INTERVAL'] || '5s'}"
-        chunk_limit_size "#{ENV['FLUENT_ELASTICSEARCH_BUFFER_CHUNK_LIMIT_SIZE'] || '8MB'}"
-        total_limit_size "#{ENV['FLUENT_ELASTICSEARCH_TOTAL_LIMIT_SIZE'] || '450MB'}"
-        queue_limit_length "#{ENV['FLUENT_ELASTICSEARCH_BUFFER_QUEUE_LIMIT_LENGTH'] || '32'}"
-        retry_max_interval "#{ENV['FLUENT_ELASTICSEARCH_BUFFER_RETRY_MAX_INTERVAL'] || '60s'}"
-        retry_forever false
-    </buffer>
-</match>
-```
-
-For more details, please refer the discussion:
-https://github.com/uken/fluent-plugin-elasticsearch/issues/867
 
 ### How to specify index codec
 
-Elasticsearch can handle compression methods for stored data such as LZ4 and best_compression.
-fluent-plugin-elasticsearch doesn't provide API which specifies compression method.
+OpenSearch can handle compression methods for stored data such as LZ4 and best_compression.
+fluent-plugin-opensearch doesn't provide API which specifies compression method.
 
 Users can specify stored data compression method with template:
 
@@ -645,7 +423,7 @@ template_name best_compression_tmpl
 template_file compression.json
 ```
 
-Elasticsearch will store data with `best_compression`:
+OpenSearch will store data with `best_compression`:
 
 ```
 % curl -XGET 'http://localhost:9200/logstash-2019.12.06/_settings?pretty'
@@ -671,9 +449,9 @@ Elasticsearch will store data with `best_compression`:
 }
 ```
 
-### Cannot push logs to Elasticsearch with connect_write timeout reached, why?
+### Cannot push logs to OpenSearch with connect_write timeout reached, why?
 
-It seems that Elasticsearch cluster is exhausted.
+It seems that OpenSearch cluster is exhausted.
 
 Usually, Fluentd complains like the following log:
 
@@ -681,12 +459,12 @@ Usually, Fluentd complains like the following log:
 2019-12-29 00:23:33 +0000 [warn]: buffer flush took longer time than slow_flush_log_threshold: elapsed_time=27.283766102716327 slow_flush_log_threshold=15.0 plugin_id="object:aaaffaaaaaff"
 2019-12-29 00:23:33 +0000 [warn]: buffer flush took longer time than slow_flush_log_threshold: elapsed_time=26.161768959928304 slow_flush_log_threshold=15.0 plugin_id="object:aaaffaaaaaff"
 2019-12-29 00:23:33 +0000 [warn]: buffer flush took longer time than slow_flush_log_threshold: elapsed_time=28.713624476008117 slow_flush_log_threshold=15.0 plugin_id="object:aaaffaaaaaff"
-2019-12-29 01:39:18 +0000 [warn]: Could not push logs to Elasticsearch, resetting connection and trying again. connect_write timeout reached
-2019-12-29 01:39:18 +0000 [warn]: Could not push logs to Elasticsearch, resetting connection and trying again. connect_write timeout reached
+2019-12-29 01:39:18 +0000 [warn]: Could not push logs to OpenSearch, resetting connection and trying again. connect_write timeout reached
+2019-12-29 01:39:18 +0000 [warn]: Could not push logs to OpenSearch, resetting connection and trying again. connect_write timeout reached
 ```
 
-This warnings is usually caused by exhaused Elasticsearch cluster due to resource shortage.
+This warnings is usually caused by exhaused OpenSearch cluster due to resource shortage.
 
-If CPU usage is spiked and Elasticsearch cluster is eating up CPU resource, this issue is caused by CPU resource shortage.
+If CPU usage is spiked and OpenSearch cluster is eating up CPU resource, this issue is caused by CPU resource shortage.
 
-Check your Elasticsearch cluster health status and resource usage.
+Check your OpenSearch cluster health status and resource usage.

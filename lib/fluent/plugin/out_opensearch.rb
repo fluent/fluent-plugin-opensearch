@@ -1,12 +1,8 @@
 # encoding: UTF-8
 require 'date'
 require 'excon'
-require 'elasticsearch'
+require 'opensearch'
 require 'set'
-begin
-  require 'elasticsearch/xpack'
-rescue LoadError
-end
 require 'json'
 require 'uri'
 require 'base64'
@@ -23,20 +19,20 @@ require 'fluent/time'
 require 'fluent/unique_id'
 require 'fluent/log-ext'
 require 'zlib'
-require_relative 'elasticsearch_constants'
-require_relative 'elasticsearch_error'
-require_relative 'elasticsearch_error_handler'
-require_relative 'elasticsearch_index_template'
-require_relative 'elasticsearch_index_lifecycle_management'
-require_relative 'elasticsearch_tls'
-require_relative 'elasticsearch_fallback_selector'
+require_relative 'opensearch_constants'
+require_relative 'opensearch_error'
+require_relative 'opensearch_error_handler'
+require_relative 'opensearch_index_template'
+require_relative 'opensearch_index_lifecycle_management'
+require_relative 'opensearch_tls'
+require_relative 'opensearch_fallback_selector'
 begin
   require_relative 'oj_serializer'
 rescue LoadError
 end
 
 module Fluent::Plugin
-  class ElasticsearchOutput < Output
+  class OpenSearchOutput < Output
     class RecoverableRequestFailure < StandardError; end
     class UnrecoverableRequestFailure < Fluent::UnrecoverableError; end
     class RetryStreamEmitFailure < StandardError; end
@@ -61,16 +57,14 @@ module Fluent::Plugin
     attr_reader :template_names
     attr_reader :ssl_version_options
     attr_reader :compressable_connection
-    attr_reader :api_key_header
 
     helpers :event_emitter, :compat_parameters, :record_accessor, :timer
 
-    Fluent::Plugin.register_output('elasticsearch', self)
+    Fluent::Plugin.register_output('opensearch', self)
 
     DEFAULT_BUFFER_TYPE = "memory"
-    DEFAULT_ELASTICSEARCH_VERSION = 5 # For compatibility.
-    DEFAULT_TYPE_NAME_ES_7x = "_doc".freeze
-    DEFAULT_TYPE_NAME = "fluentd".freeze
+    DEFAULT_OPENSEARCH_VERSION = 1
+    DEFAULT_TYPE_NAME = "_doc".freeze
     DEFAULT_RELOAD_AFTER = -1
     DEFAULT_TARGET_BULK_BYTES = -1
     DEFAULT_POLICY_ID = "logstash-policy"
@@ -79,16 +73,10 @@ module Fluent::Plugin
     config_param :port, :integer, :default => 9200
     config_param :user, :string, :default => nil
     config_param :password, :string, :default => nil, :secret => true
-    config_param :cloud_id, :string, :default => nil
-    config_param :cloud_auth, :string, :default => nil
     config_param :path, :string, :default => nil
     config_param :scheme, :enum, :list => [:https, :http], :default => :http
     config_param :hosts, :string, :default => nil
     config_param :target_index_key, :string, :default => nil
-    config_param :target_type_key, :string, :default => nil,
-                 :deprecated => <<EOC
-Elasticsearch 7.x or above will ignore this config. Please use fixed type_name instead.
-EOC
     config_param :time_key_format, :string, :default => nil
     config_param :time_precision, :integer, :default => 9
     config_param :include_timestamp, :bool, :default => false
@@ -97,8 +85,6 @@ EOC
     config_param :logstash_prefix_separator, :string, :default => '-'
     config_param :logstash_dateformat, :string, :default => "%Y.%m.%d"
     config_param :utc_index, :bool, :default => true
-    config_param :type_name, :string, :default => DEFAULT_TYPE_NAME
-    config_param :suppress_type_name, :bool, :default => false
     config_param :index_name, :string, :default => "fluentd"
     config_param :id_key, :string, :default => nil
     config_param :write_operation, :string, :default => "index"
@@ -129,17 +115,15 @@ EOC
     config_param :index_date_pattern, :string, :default => "now/d"
     config_param :index_separator, :string, :default => "-"
     config_param :deflector_alias, :string, :default => nil
-    config_param :index_prefix, :string, :default => "logstash",
-                 obsoleted: "This parameter shouldn't be used in 4.0.0 or later. Specify ILM target index with using `index_name' w/o `logstash_format' or 'logstash_prefix' w/ `logstash_format' instead."
     config_param :application_name, :string, :default => "default"
     config_param :templates, :hash, :default => nil
     config_param :max_retry_putting_template, :integer, :default => 10
     config_param :fail_on_putting_template_retry_exceed, :bool, :default => true
-    config_param :fail_on_detecting_es_version_retry_exceed, :bool, :default => true
-    config_param :max_retry_get_es_version, :integer, :default => 15
+    config_param :fail_on_detecting_os_version_retry_exceed, :bool, :default => true
+    config_param :max_retry_get_os_version, :integer, :default => 15
     config_param :include_tag_key, :bool, :default => false
     config_param :tag_key, :string, :default => 'tag'
-    config_param :time_parse_error_tag, :string, :default => 'Fluent::ElasticsearchOutput::TimeParser.error'
+    config_param :time_parse_error_tag, :string, :default => 'opensearch_plugin.output.time.error'
     config_param :reconnect_on_error, :bool, :default => false
     config_param :pipeline, :string, :default => nil
     config_param :with_transporter_log, :bool, :default => false
@@ -147,22 +131,16 @@ EOC
     config_param :sniffer_class_name, :string, :default => nil
     config_param :selector_class_name, :string, :default => nil
     config_param :reload_after, :integer, :default => DEFAULT_RELOAD_AFTER
-    config_param :content_type, :enum, list: [:"application/json", :"application/x-ndjson"], :default => :"application/json",
-                 :deprecated => <<EOC
-elasticsearch gem v6.0.2 starts to use correct Content-Type. Please upgrade elasticserach gem and stop to use this option.
-see: https://github.com/elastic/elasticsearch-ruby/pull/514
-EOC
     config_param :include_index_in_url, :bool, :default => false
     config_param :http_backend, :enum, list: [:excon, :typhoeus], :default => :excon
     config_param :http_backend_excon_nonblock, :bool, :default => true
     config_param :validate_client_version, :bool, :default => false
     config_param :prefer_oj_serializer, :bool, :default => false
-    config_param :unrecoverable_error_types, :array, :default => ["out_of_memory_error", "es_rejected_execution_exception"]
-    config_param :verify_es_version_at_startup, :bool, :default => true
-    config_param :default_elasticsearch_version, :integer, :default => DEFAULT_ELASTICSEARCH_VERSION
-    config_param :log_es_400_reason, :bool, :default => false
+    config_param :unrecoverable_error_types, :array, :default => ["out_of_memory_error", "rejected_execution_exception"]
+    config_param :verify_os_version_at_startup, :bool, :default => true
+    config_param :default_opensearch_version, :integer, :default => DEFAULT_OPENSEARCH_VERSION
+    config_param :log_os_400_reason, :bool, :default => false
     config_param :custom_headers, :hash, :default => {}
-    config_param :api_key, :string, :default => nil, :secret => true
     config_param :suppress_doc_wrap, :bool, :default => false
     config_param :ignore_exceptions, :array, :default => [], value_type: :string, :desc => "Ignorable exception list"
     config_param :exception_backup, :bool, :default => true, :desc => "Chunk backup flag when ignore exception occured"
@@ -189,10 +167,10 @@ EOC
       config_set_default :timekey_use_utc, true
     end
 
-    include Fluent::ElasticsearchIndexTemplate
-    include Fluent::Plugin::ElasticsearchConstants
-    include Fluent::Plugin::ElasticsearchIndexLifecycleManagement
-    include Fluent::Plugin::ElasticsearchTLS
+    include Fluent::OpenSearchIndexTemplate
+    include Fluent::Plugin::OpenSearchConstants
+    include Fluent::Plugin::OpenSearchIndexLifecycleManagement
+    include Fluent::Plugin::OpenSearchTLS
 
     def initialize
       super
@@ -220,26 +198,20 @@ EOC
         @target_index_key = @target_index_key.split '.'
       end
 
-      if @target_type_key && @target_type_key.is_a?(String)
-        @target_type_key = @target_type_key.split '.'
-      end
-
       if @remove_keys_on_update && @remove_keys_on_update.is_a?(String)
         @remove_keys_on_update = @remove_keys_on_update.split ','
       end
 
-      @api_key_header = setup_api_key
-
       raise Fluent::ConfigError, "'max_retry_putting_template' must be greater than or equal to zero." if @max_retry_putting_template < 0
-      raise Fluent::ConfigError, "'max_retry_get_es_version' must be greater than or equal to zero." if @max_retry_get_es_version < 0
+      raise Fluent::ConfigError, "'max_retry_get_os_version' must be greater than or equal to zero." if @max_retry_get_os_version < 0
 
       # Dump log when using host placeholders and template features at same time.
       valid_host_placeholder = placeholder?(:host_placeholder, @host)
       if valid_host_placeholder && (@template_name && @template_file || @templates)
-        if @verify_es_version_at_startup
-          raise Fluent::ConfigError, "host placeholder, template installation, and verify Elasticsearch version at startup are exclusive feature at same time. Please specify verify_es_version_at_startup as `false` when host placeholder and template installation are enabled."
+        if @verify_os_version_at_startup
+          raise Fluent::ConfigError, "host placeholder, template installation, and verify OpenSearch version at startup are exclusive feature at same time. Please specify verify_os_version_at_startup as `false` when host placeholder and template installation are enabled."
         end
-        log.info "host placeholder and template installation makes your Elasticsearch cluster a bit slow down(beta)."
+        log.info "host placeholder and template installation makes your OpenSearch cluster a bit slow down(beta)."
       end
 
       raise Fluent::ConfigError, "You can't specify ilm_policy and ilm_policies at the same time" unless @ilm_policy.empty? or @ilm_policies.empty?
@@ -277,7 +249,7 @@ EOC
 
       @truncate_mutex = Mutex.new
       if @truncate_caches_interval
-        timer_execute(:out_elasticsearch_truncate_caches, @truncate_caches_interval) do
+        timer_execute(:out_opensearch_truncate_caches, @truncate_caches_interval) do
           log.info('Clean up the indices and template names cache')
 
           @truncate_mutex.synchronize {
@@ -293,19 +265,13 @@ EOC
         @dump_proc = Oj.method(:dump)
         if @prefer_oj_serializer
           @serializer_class = Fluent::Plugin::Serializer::Oj
-          Elasticsearch::API.settings[:serializer] = Fluent::Plugin::Serializer::Oj
+          OpenSearch::API.settings[:serializer] = Fluent::Plugin::Serializer::Oj
         end
       rescue LoadError
         @dump_proc = Yajl.method(:dump)
       end
 
-      raise Fluent::ConfigError, "`cloud_auth` must be present if `cloud_id` is present" if @cloud_id && @cloud_auth.nil?
       raise Fluent::ConfigError, "`password` must be present if `user` is present" if @user && @password.nil?
-
-      if @cloud_auth
-        @user = @cloud_auth.split(':', -1)[0]
-        @password = @cloud_auth.split(':', -1)[1]
-      end
 
       if @user && m = @user.match(/%{(?<user>.*)}/)
         @user = URI.encode_www_form_component(m["user"])
@@ -336,41 +302,26 @@ EOC
         raise Fluent::ConfigError, "Could not load selector class #{@selector_class_name}: #{ex}"
       end
 
-      @last_seen_major_version = if major_version = handle_last_seen_es_major_version
+      @last_seen_major_version = if major_version = handle_last_seen_os_major_version
                                    major_version
                                  else
-                                   @default_elasticsearch_version
+                                   @default_opensearch_version
                                  end
-      if @suppress_type_name && @last_seen_major_version >= 7
-        @type_name = nil
-      else
-        if @last_seen_major_version == 6 && @type_name != DEFAULT_TYPE_NAME_ES_7x
-          log.info "Detected ES 6.x: ES 7.x will only accept `_doc` in type_name."
-        end
-        if @last_seen_major_version == 7 && @type_name != DEFAULT_TYPE_NAME_ES_7x
-          log.warn "Detected ES 7.x: `_doc` will be used as the document `_type`."
-          @type_name = '_doc'.freeze
-        end
-        if @last_seen_major_version >= 8 && @type_name != DEFAULT_TYPE_NAME_ES_7x
-          log.debug "Detected ES 8.x or above: This parameter has no effect."
-          @type_name = nil
-        end
-      end
 
       if @validate_client_version && !dry_run?
         if @last_seen_major_version != client_library_version.to_i
           raise Fluent::ConfigError, <<-EOC
-            Detected ES #{@last_seen_major_version} but you use ES client #{client_library_version}.
-            Please consider to use #{@last_seen_major_version}.x series ES client.
+            Detected OpenSearch #{@last_seen_major_version} but you use OpenSearch client #{client_library_version}.
+            Please consider to use #{@last_seen_major_version}.x series OpenSearch client.
           EOC
         end
       end
 
-      if @last_seen_major_version >= 6
+      if @last_seen_major_version >= 1
         case @ssl_version
         when :SSLv23, :TLSv1, :TLSv1_1
           if @scheme == :https
-            log.warn "Detected ES 6.x or above and enabled insecure security:
+            log.warn "Detected OpenSearch 1.x or above and enabled insecure security:
                       You might have to specify `ssl_version TLSv1_2` in configuration."
           end
         end
@@ -412,22 +363,6 @@ EOC
           alias_method :split_request?, :split_request_size_check?
         end
       end
-
-      if Gem::Version.create(::Elasticsearch::Transport::VERSION) < Gem::Version.create("7.2.0")
-        if compression
-          raise Fluent::ConfigError, <<-EOC
-            Cannot use compression with elasticsearch-transport plugin version < 7.2.0
-            Your elasticsearch-transport plugin version version is #{Elasticsearch::Transport::VERSION}.
-            Please consider to upgrade ES client.
-          EOC
-        end
-      end
-    end
-
-    def setup_api_key
-      return {} unless @api_key
-
-      { "Authorization" => "ApiKey " + Base64.strict_encode64(@api_key) }
     end
 
     def dry_run?
@@ -482,41 +417,37 @@ EOC
       raise Fluent::ConfigError, "You must install #{@http_backend} gem. Exception: #{ex}"
     end
 
-    def handle_last_seen_es_major_version
-      if @verify_es_version_at_startup && !dry_run?
-        retry_operate(@max_retry_get_es_version,
-                      @fail_on_detecting_es_version_retry_exceed,
+    def handle_last_seen_os_major_version
+      if @verify_os_version_at_startup && !dry_run?
+        retry_operate(@max_retry_get_os_version,
+                      @fail_on_detecting_os_version_retry_exceed,
                       @catch_transport_exception_on_retry) do
-          detect_es_major_version
+          detect_os_major_version
         end
       else
         nil
       end
     end
 
-    def detect_es_major_version
-      @_es_info ||= client.info
+    def detect_os_major_version
+      @_os_info ||= client.info
       begin
-        unless version = @_es_info.dig("version", "number")
-          version = @default_elasticsearch_version
+        unless version = @_os_info.dig("version", "number")
+          version = @default_opensearch_version
         end
       rescue NoMethodError => e
-        log.warn "#{@_es_info} can not dig version information. Assuming Elasticsearch #{@default_elasticsearch_version}", error: e
-        version = @default_elasticsearch_version
+        log.warn "#{@_os_info} can not dig version information. Assuming OpenSearch #{@default_opensearch_version}", error: e
+        version = @default_opensearch_version
       end
       version.to_i
     end
 
     def client_library_version
-      Elasticsearch::VERSION
+      OpenSearch::VERSION
     end
 
     def configure_routing_key_name
-      if @last_seen_major_version >= 7
-        'routing'
-      else
-        '_routing'
-      end
+      'routing'.freeze
     end
 
     def convert_compat_id_key(key)
@@ -576,24 +507,14 @@ EOC
       return Time.at(event_time).to_datetime
     end
 
-    def cloud_client
-      Elasticsearch::Client.new(
-        cloud_id: @cloud_id,
-        user: @user,
-        password: @password
-      )
-    end
-
     def client(host = nil, compress_connection = false)
-      return cloud_client if @cloud_id
-
       # check here to see if we already have a client connection for the given host
       connection_options = get_connection_options(host)
 
-      @_es = nil unless is_existing_connection(connection_options[:hosts])
-      @_es = nil unless @compressable_connection == compress_connection
+      @_os = nil unless is_existing_connection(connection_options[:hosts])
+      @_os = nil unless @compressable_connection == compress_connection
 
-      @_es ||= begin
+      @_os ||= begin
         @compressable_connection = compress_connection
         @current_config = connection_options[:hosts].clone
         adapter_conf = lambda {|f| f.adapter @http_backend, @backend_options }
@@ -607,13 +528,11 @@ EOC
                        else
                          {}
                        end
-        headers = { 'Content-Type' => @content_type.to_s }
-                    .merge(@custom_headers)
-                    .merge(@api_key_header)
+        headers = {}.merge(@custom_headers)
                     .merge(gzip_headers)
         ssl_options = { verify: @ssl_verify, ca_file: @ca_file}.merge(@ssl_version_options)
 
-        transport = Elasticsearch::Transport::Transport::HTTP::Faraday.new(connection_options.merge(
+        transport = OpenSearch::Transport::Transport::HTTP::Faraday.new(connection_options.merge(
                                                                             options: {
                                                                               reload_connections: local_reload_connections,
                                                                               reload_on_failure: @reload_on_failure,
@@ -634,7 +553,7 @@ EOC
                                                                               selector_class: @selector_class,
                                                                               compression: compress_connection,
                                                                             }), &adapter_conf)
-        Elasticsearch::Client.new transport: transport
+        OpenSearch::Client.new transport: transport
       end
     end
 
@@ -695,7 +614,7 @@ EOC
     end
 
     # append_record_to_messages adds a record to the bulk message
-    # payload to be submitted to Elasticsearch.  Records that do
+    # payload to be submitted to OpenSearch.  Records that do
     # not include '_id' field are skipped when 'write_operation'
     # is configured for 'create' or 'update'
     #
@@ -770,11 +689,6 @@ EOC
       logstash_prefix = extract_placeholders(@logstash_prefix, chunk)
       logstash_dateformat = extract_placeholders(@logstash_dateformat, chunk)
       index_name = extract_placeholders(@index_name, chunk)
-      if @type_name
-        type_name = extract_placeholders(@type_name, chunk)
-      else
-        type_name = nil
-      end
       if @template_name
         template_name = extract_placeholders(@template_name, chunk)
       else
@@ -805,7 +719,7 @@ EOC
       else
         ilm_policy_id = nil
       end
-      return logstash_prefix, logstash_dateformat, index_name, type_name, template_name, customize_template, deflector_alias, application_name, pipeline, ilm_policy_id
+      return logstash_prefix, logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, pipeline, ilm_policy_id
     end
 
     def multi_workers_ready?
@@ -895,7 +809,7 @@ EOC
             ids << id_key_accessor.call(record)
           end
         end
-        log.debug("Find affinity target_indices by quering on ES (write_operation #{@write_operation}) for ids: #{ids.to_a}")
+        log.debug("Find affinity target_indices by quering on OpenSearch (write_operation #{@write_operation}) for ids: #{ids.to_a}")
         options = {
           :index => "#{logstash_prefix}#{@logstash_prefix_separator}*",
         }
@@ -929,7 +843,7 @@ EOC
     end
 
     def process_message(tag, meta, header, time, record, affinity_target_indices, extracted_values)
-      logstash_prefix, logstash_dateformat, index_name, type_name, _template_name, _customize_template, _deflector_alias, application_name, pipeline, _ilm_policy_id = extracted_values
+      logstash_prefix, logstash_dateformat, index_name, _template_name, _customize_template, _deflector_alias, application_name, pipeline, _ilm_policy_id = extracted_values
 
       if @flatten_hashes
         record = flatten_record(record)
@@ -961,7 +875,7 @@ EOC
         target_index_alias = target_index = index_name
       end
 
-      # Change target_index to lower-case since Elasticsearch doesn't
+      # Change target_index to lower-case since OpenSearch doesn't
       # allow upper-case characters in index names.
       target_index = target_index.downcase
       target_index_alias = target_index_alias.downcase
@@ -978,36 +892,12 @@ EOC
         end
       end
 
-      target_type_parent, target_type_child_key = @target_type_key ? get_parent_of(record, @target_type_key) : nil
-      if target_type_parent && target_type_parent[target_type_child_key]
-        target_type = target_type_parent.delete(target_type_child_key)
-        if @last_seen_major_version == 6
-          log.warn "Detected ES 6.x: `@type_name` will be used as the document `_type`."
-          target_type = type_name
-        elsif @last_seen_major_version == 7
-          log.warn "Detected ES 7.x: `_doc` will be used as the document `_type`."
-          target_type = '_doc'.freeze
-        elsif @last_seen_major_version >= 8
-          log.debug "Detected ES 8.x or above: document type will not be used."
-          target_type = nil
-        end
-      else
-        if @suppress_type_name && @last_seen_major_version == 7
-          target_type = nil
-        elsif @last_seen_major_version == 7 && @type_name != DEFAULT_TYPE_NAME_ES_7x
-          log.warn "Detected ES 7.x: `_doc` will be used as the document `_type`."
-          target_type = '_doc'.freeze
-        elsif @last_seen_major_version >= 8
-          log.debug "Detected ES 8.x or above: document type will not be used."
-          target_type = nil
-        else
-          target_type = type_name
-        end
-      end
+      # OpenSearch only supports "_doc".
+      target_type = DEFAULT_TYPE_NAME
 
       meta.clear
       meta["_index".freeze] = target_index
-      meta["_type".freeze] = target_type unless @last_seen_major_version >= 8
+      meta["_type".freeze] = target_type
       meta["_alias".freeze] = target_index_alias
 
       if @pipeline
@@ -1090,7 +980,7 @@ EOC
     # send_bulk given a specific bulk request, the original tag,
     # chunk, and bulk_message_count
     def send_bulk(data, tag, chunk, bulk_message_count, extracted_values, info)
-      _logstash_prefix, _logstash_dateformat, index_name, _type_name, template_name, customize_template, deflector_alias, application_name, _pipeline, ilm_policy_id = extracted_values
+      _logstash_prefix, _logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, _pipeline, ilm_policy_id = extracted_values
       if deflector_alias
         template_installation(deflector_alias, template_name, customize_template, application_name, index_name, ilm_policy_id, info.host)
       else
@@ -1111,7 +1001,7 @@ EOC
         log.on_trace { log.trace "bulk response: #{response}" }
 
         if response['errors']
-          error = Fluent::Plugin::ElasticsearchErrorHandler.new(self)
+          error = Fluent::Plugin::OpenSearchErrorHandler.new(self)
           error.handle_error(response, tag, chunk, bulk_message_count, extracted_values)
         end
       rescue RetryStreamError => e
@@ -1129,13 +1019,13 @@ EOC
 
         log.warn "Exception ignored in tag #{tag}: #{e.class.name} #{e.message}" if ignore
 
-        @_es = nil if @reconnect_on_error
-        @_es_info = nil if @reconnect_on_error
+        @_os = nil if @reconnect_on_error
+        @_os_info = nil if @reconnect_on_error
 
         raise UnrecoverableRequestFailure if ignore && @exception_backup
 
         # FIXME: identify unrecoverable errors and raise UnrecoverableRequestFailure instead
-        raise RecoverableRequestFailure, "could not push logs to Elasticsearch cluster (#{connection_options_description(info.host)}): #{e.message}" unless ignore
+        raise RecoverableRequestFailure, "could not push logs to OpenSearch cluster (#{connection_options_description(info.host)}): #{e.message}" unless ignore
       end
     end
 
@@ -1145,7 +1035,7 @@ EOC
 
     def is_existing_connection(host)
       # check if the host provided match the current connection
-      return false if @_es.nil?
+      return false if @_os.nil?
       return false if @current_config.nil?
       return false if host.length != @current_config.length
 

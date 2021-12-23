@@ -1,8 +1,8 @@
 require_relative '../helper'
 require 'fluent/test/driver/output'
-require 'fluent/plugin/out_elasticsearch'
+require 'fluent/plugin/out_opensearch'
 
-class ElasticsearchFallbackSelectorTest < Test::Unit::TestCase
+class OpenSearchFallbackSelectorTest < Test::Unit::TestCase
   attr_accessor :index_cmds
 
   def setup
@@ -12,22 +12,22 @@ class ElasticsearchFallbackSelectorTest < Test::Unit::TestCase
     log.out.logs.slice!(0, log.out.logs.length)
   end
 
-  def stub_elastic(url="http://localhost:9200/_bulk")
+  def stub_opensearch(url="http://localhost:9200/_bulk")
     stub_request(:post, url).with do |req|
       @index_cmds = req.body.split("\n").map {|r| JSON.parse(r) }
     end
   end
 
-  def stub_elastic_info(url="http://localhost:9200/", version="6.4.2")
-    body ="{\"version\":{\"number\":\"#{version}\", \"build_flavor\":\"default\"},\"tagline\" : \"You Know, for Search\"}"
+  def stub_opensearch_info(url="http://localhost:9200/", version="1.2.2")
+    body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
     stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
   end
 
-  def stub_elastic_info_not_found(url="http://localhost:9200/", version="6.4.2")
+  def stub_opensearch_info_not_found(url="http://localhost:9200/", version="1.2.2")
     stub_request(:get, url).to_return(:status => [404, "Not Found"])
   end
 
-  def stub_elastic_info_unavailable(url="http://localhost:9200/", version="6.4.2")
+  def stub_opensearch_info_unavailable(url="http://localhost:9200/", version="1.2.2")
     stub_request(:get, url).to_return(:status => [503, "Service Unavailable"])
   end
 
@@ -36,7 +36,7 @@ class ElasticsearchFallbackSelectorTest < Test::Unit::TestCase
   end
 
   def driver(conf='')
-    @driver ||= Fluent::Test::Driver::Output.new(Fluent::Plugin::ElasticsearchOutput) {
+    @driver ||= Fluent::Test::Driver::Output.new(Fluent::Plugin::OpenSearchOutput) {
       # v0.12's test driver assume format definition. This simulates ObjectBufferedOutput format
       if !defined?(Fluent::Plugin::Output)
         def format(tag, time, record)
@@ -47,20 +47,20 @@ class ElasticsearchFallbackSelectorTest < Test::Unit::TestCase
   end
 
   def test_fallback_on_info
-    stub_elastic_info_not_found("http://localhost:9202/")
-    stub_elastic_info_unavailable("http://localhost:9201/")
-    stub_elastic_info
-    stub_elastic
+    stub_opensearch_info_not_found("http://localhost:9202/")
+    stub_opensearch_info_unavailable("http://localhost:9201/")
+    stub_opensearch_info
+    stub_opensearch
     config = %[
       hosts localhost:9202,localhost:9201,localhost:9200
-      selector_class_name Fluent::Plugin::ElasticseatchFallbackSelector
+      selector_class_name Fluent::Plugin::OpenSearchFallbackSelector
       @log_level debug
       with_transporter_log true
       reload_connections true
       reload_after 10
       catch_transport_exception_on_retry false # For fallback testing
     ]
-    assert_raise(Elasticsearch::Transport::Transport::Errors::NotFound) do
+    assert_raise(OpenSearch::Transport::Transport::Errors::NotFound) do
       driver(config)
     end
     driver.run(default_tag: 'test') do
