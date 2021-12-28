@@ -23,7 +23,6 @@ require_relative 'opensearch_constants'
 require_relative 'opensearch_error'
 require_relative 'opensearch_error_handler'
 require_relative 'opensearch_index_template'
-require_relative 'opensearch_index_lifecycle_management'
 require_relative 'opensearch_tls'
 require_relative 'opensearch_fallback_selector'
 begin
@@ -51,7 +50,7 @@ module Fluent::Plugin
       end
     end
 
-    RequestInfo = Struct.new(:host, :index, :ilm_index, :ilm_alias)
+    RequestInfo = Struct.new(:host, :index, :alias)
 
     attr_reader :alias_indexes
     attr_reader :template_names
@@ -146,11 +145,6 @@ module Fluent::Plugin
     config_param :exception_backup, :bool, :default => true, :desc => "Chunk backup flag when ignore exception occured"
     config_param :bulk_message_request_threshold, :size, :default => DEFAULT_TARGET_BULK_BYTES
     config_param :compression_level, :enum, list: [:no_compression, :best_speed, :best_compression, :default_compression], :default => :no_compression
-    config_param :enable_ilm, :bool, :default => false
-    config_param :ilm_policy_id, :string, :default => DEFAULT_POLICY_ID
-    config_param :ilm_policy, :hash, :default => {}
-    config_param :ilm_policies, :hash, :default => {}
-    config_param :ilm_policy_overwrite, :bool, :default => false
     config_param :truncate_caches_interval, :time, :default => nil
     config_param :use_legacy_template, :bool, :default => true
     config_param :catch_transport_exception_on_retry, :bool, :default => true
@@ -169,7 +163,6 @@ module Fluent::Plugin
 
     include Fluent::OpenSearchIndexTemplate
     include Fluent::Plugin::OpenSearchConstants
-    include Fluent::Plugin::OpenSearchIndexLifecycleManagement
     include Fluent::Plugin::OpenSearchTLS
 
     def initialize
@@ -214,29 +207,17 @@ module Fluent::Plugin
         log.info "host placeholder and template installation makes your OpenSearch cluster a bit slow down(beta)."
       end
 
-      raise Fluent::ConfigError, "You can't specify ilm_policy and ilm_policies at the same time" unless @ilm_policy.empty? or @ilm_policies.empty?
-
-      unless @ilm_policy.empty?
-        @ilm_policies = { @ilm_policy_id => @ilm_policy }
-      end
       @alias_indexes = []
       @template_names = []
       if !dry_run?
         if @template_name && @template_file
-          if @enable_ilm
-            raise Fluent::ConfigError, "deflector_alias is prohibited to use with enable_ilm at same time." if @deflector_alias
-          end
-          if @ilm_policy.empty? && @ilm_policy_overwrite
-            raise Fluent::ConfigError, "ilm_policy_overwrite requires a non empty ilm_policy."
-          end
           if @logstash_format || placeholder_substitution_needed_for_template?
             class << self
               alias_method :template_installation, :template_installation_actual
             end
           else
-            template_installation_actual(@deflector_alias ? @deflector_alias : @index_name, @template_name, @customize_template, @application_name, @index_name, @ilm_policy_id)
+            template_installation_actual(@deflector_alias ? @deflector_alias : @index_name, @template_name, @customize_template, @application_name, @index_name)
           end
-          verify_ilm_working if @enable_ilm
         end
         if @templates
           retry_operate(@max_retry_putting_template,
@@ -714,12 +695,7 @@ module Fluent::Plugin
       else
         pipeline = nil
       end
-      if @ilm_policy_id
-        ilm_policy_id = extract_placeholders(@ilm_policy_id, chunk)
-      else
-        ilm_policy_id = nil
-      end
-      return logstash_prefix, logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, pipeline, ilm_policy_id
+      return logstash_prefix, logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, pipeline
     end
 
     def multi_workers_ready?
@@ -759,9 +735,9 @@ module Fluent::Plugin
         begin
           meta, header, record = process_message(tag, meta, header, time, record, affinity_target_indices, extracted_values)
           info = if @include_index_in_url
-                   RequestInfo.new(host, meta.delete("_index".freeze), meta["_index".freeze], meta.delete("_alias".freeze))
+                   RequestInfo.new(host, meta.delete("_index".freeze), meta.delete("_alias".freeze))
                  else
-                   RequestInfo.new(host, nil, meta["_index".freeze], meta.delete("_alias".freeze))
+                   RequestInfo.new(host, nil, meta.delete("_alias".freeze))
                  end
 
           if split_request?(bulk_message, info)
@@ -843,7 +819,7 @@ module Fluent::Plugin
     end
 
     def process_message(tag, meta, header, time, record, affinity_target_indices, extracted_values)
-      logstash_prefix, logstash_dateformat, index_name, _template_name, _customize_template, _deflector_alias, application_name, pipeline, _ilm_policy_id = extracted_values
+      logstash_prefix, logstash_dateformat, index_name, _template_name, _customize_template, _deflector_alias, application_name, pipeline = extracted_values
 
       if @flatten_hashes
         record = flatten_record(record)
@@ -942,16 +918,15 @@ module Fluent::Plugin
         placeholder?(:logstash_dateformat, @logstash_dateformat.to_s) ||
         placeholder?(:deflector_alias, @deflector_alias.to_s) ||
         placeholder?(:application_name, @application_name.to_s) ||
-        placeholder?(:ilm_policy_id, @ilm_policy_id.to_s)
       log.debug("Need substitution: #{need_substitution}")
       need_substitution
     end
 
-    def template_installation(deflector_alias, template_name, customize_template, application_name, ilm_policy_id, target_index, host)
+    def template_installation(deflector_alias, template_name, customize_template, application_name, target_index, host)
       # for safety.
     end
 
-    def template_installation_actual(deflector_alias, template_name, customize_template, application_name, target_index, ilm_policy_id, host=nil)
+    def template_installation_actual(deflector_alias, template_name, customize_template, application_name, target_index, host=nil)
       if template_name && @template_file
         if !@logstash_format && (deflector_alias.nil? || (@alias_indexes.include? deflector_alias)) && (@template_names.include? template_name)
           if deflector_alias
@@ -964,12 +939,11 @@ module Fluent::Plugin
                         @fail_on_putting_template_retry_exceed,
                         @catch_transport_exception_on_retry) do
             if customize_template
-              template_custom_install(template_name, @template_file, @template_overwrite, customize_template, @enable_ilm, deflector_alias, ilm_policy_id, host, target_index, @index_separator)
+              template_custom_install(template_name, @template_file, @template_overwrite, customize_template, deflector_alias, host, target_index, @index_separator)
             else
-              template_install(template_name, @template_file, @template_overwrite, @enable_ilm, deflector_alias, ilm_policy_id, host, target_index, @index_separator)
+              template_install(template_name, @template_file, @template_overwrite, deflector_alias, host, target_index, @index_separator)
             end
-            ilm_policy = @ilm_policies[ilm_policy_id] || {}
-            create_rollover_alias(target_index, @rollover_index, deflector_alias, application_name, @index_date_pattern, @index_separator, @enable_ilm, ilm_policy_id, ilm_policy, @ilm_policy_overwrite, host)
+            create_rollover_alias(target_index, @rollover_index, deflector_alias, application_name, @index_date_pattern, @index_separator, host)
           end
           @alias_indexes << deflector_alias unless deflector_alias.nil?
           @template_names << template_name
@@ -980,12 +954,8 @@ module Fluent::Plugin
     # send_bulk given a specific bulk request, the original tag,
     # chunk, and bulk_message_count
     def send_bulk(data, tag, chunk, bulk_message_count, extracted_values, info)
-      _logstash_prefix, _logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, _pipeline, ilm_policy_id = extracted_values
-      if deflector_alias
-        template_installation(deflector_alias, template_name, customize_template, application_name, index_name, ilm_policy_id, info.host)
-      else
-        template_installation(info.ilm_index, template_name, customize_template, application_name, @logstash_format ? info.ilm_alias : index_name, ilm_policy_id, info.host)
-      end
+      _logstash_prefix, _logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, _pipeline  = extracted_values
+      template_installation(deflector_alias, template_name, customize_template, application_name, index_name, info.host)
 
       begin
 
