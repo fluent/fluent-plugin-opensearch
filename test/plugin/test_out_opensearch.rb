@@ -457,7 +457,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
          "template_name_placeholder" => ["template_name", "logstash-${tag}"],
          "customize_template" => ["customize_template", '{"<<TAG>>":"${tag}"}'],
          "logstash_prefix_placeholder" => ["logstash_prefix", "fluentd-${tag}"],
-         "deflector_alias_placeholder" => ["deflector_alias", "fluentd-${tag}"],
          "application_name_placeholder" => ["application_name", "fluentd-${tag}"],
         )
     test 'tag placeholder' do |data|
@@ -480,7 +479,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
          "template_name_placeholder" => ["template_name", "logstash-%Y%m%d"],
          "customize_template" => ["customize_template", '{"<<TAG>>":"fluentd-%Y%m%d"}'],
          "logstash_prefix_placeholder" => ["logstash_prefix", "fluentd-%Y%m%d"],
-         "deflector_alias_placeholder" => ["deflector_alias", "fluentd-%Y%m%d"],
          "application_name_placeholder" => ["application_name", "fluentd-%Y%m%d"],
         )
     test 'time placeholder' do |data|
@@ -505,7 +503,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
          "customize_template" => ["customize_template", '{"<<TAG>>":"${mykey}"}'],
          "logstash_prefix_placeholder" => ["logstash_prefix", "fluentd-${mykey}"],
          "logstash_dateformat_placeholder" => ["logstash_dateformat", "${mykey}"],
-         "deflector_alias_placeholder" => ["deflector_alias", "fluentd-${mykey}"],
          "application_name_placeholder" => ["application_name", "fluentd-${mykey}"],
         )
     test 'custom placeholder' do |data|
@@ -531,7 +528,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
          "customize_template" => ["customize_template", '{"<<TAG>>":"${os_index}"}'],
          "logstash_prefix_placeholder" => ["logstash_prefix", "fluentd-${os_index}-%Y%m%d"],
          "logstash_dateformat_placeholder" => ["logstash_dateformat", "${os_index}"],
-         "deflector_alias_placeholder" => ["deflector_alias", "fluentd-%Y%m%d"],
          "application_name_placeholder" => ["application_name", "fluentd-${tag}-${os_index}-%Y%m%d"],
         )
     test 'mixed placeholder' do |data|
@@ -813,145 +809,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
 
   data("legacy_template" => [true, "_template"],
        "new_template"    => [false, "_index_template"])
-  def test_template_create_with_rollover_index_and_template_related_placeholders(data)
-    use_legacy_template_flag, endpoint = data
-    cwd = File.dirname(__FILE__)
-    template_file = if use_legacy_template_flag
-                      File.join(cwd, 'test_template.json')
-                    else
-                      File.join(cwd, 'test_index_template.json')
-                    end
-   config = %{
-      host               logs.google.com
-      port               777
-      scheme             https
-      path               /os/
-      user               john
-      password           doe
-      template_name      logstash-${tag}
-      template_file      #{template_file}
-      rollover_index     true
-      index_date_pattern ""
-      index_name         fluentd-${tag}
-      deflector_alias    myapp_deflector-${tag}
-      use_legacy_template #{use_legacy_template_flag}
-    }
-
-    # connection start
-    stub_request(:head, "https://logs.google.com:777/os//").
-      with(basic_auth: ['john', 'doe']).
-    to_return(:status => 200, :body => "", :headers => {})
-    # check if template exists
-    stub_request(:get, "https://logs.google.com:777/os//#{endpoint}/logstash-test.template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # create template
-    stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/logstash-test.template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if alias exists
-    stub_request(:head, "https://logs.google.com:777/os//_alias/myapp_deflector-test.template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # put the alias for the index
-    stub_request(:put, "https://logs.google.com:777/os//%3Cfluentd-test.template-default-000001%3E").
-      with(basic_auth: ['john', 'doe']).
-      to_return(status: 200, body: "", headers: {})
-    stub_request(:put, "https://logs.google.com:777/os//%3Cfluentd-test.template-default-000001%3E/#{alias_endpoint}/myapp_deflector-test.template").
-      with(basic_auth: ['john', 'doe'],
-           body: "{\"aliases\":{\"myapp_deflector-test.template\":{\"is_write_index\":true}}}").
-      to_return(:status => 200, :body => "", :headers => {})
-
-    driver(config)
-
-    elastic_request = stub_opensearch("https://logs.google.com:777/os//_bulk")
-    stub_opensearch_info("https://logs.google.com:777/os//")
-    driver.run(default_tag: 'test.template') do
-      driver.feed(sample_record)
-    end
-    assert_equal('fluentd-test.template', index_cmds.first['index']['_index'])
-
-    assert_equal ["myapp_deflector-test.template"], driver.instance.alias_indexes
-    assert_equal ["logstash-test.template"], driver.instance.template_names
-
-    assert_requested(elastic_request)
-  end
-
-  data("legacy_template" => [true, "_template"],
-       "new_template"    => [false, "_index_template"])
-  def test_template_create_with_rollover_index_and_template_related_placeholders_with_truncating_caches(data)
-    use_legacy_template_flag, endpoint = data
-    cwd = File.dirname(__FILE__)
-    template_file = if use_legacy_template_flag
-                      File.join(cwd, 'test_template.json')
-                    else
-                      File.join(cwd, 'test_index_template.json')
-                    end
-    config = %{
-      host               logs.google.com
-      port               777
-      scheme             https
-      path               /os/
-      user               john
-      password           doe
-      template_name      logstash-${tag}
-      template_file      #{template_file}
-      rollover_index     true
-      index_date_pattern ""
-      index_name         fluentd-${tag}
-      deflector_alias    myapp_deflector-${tag}
-      truncate_caches_interval 2s
-      use_legacy_template #{use_legacy_template_flag}
-    }
-
-    # connection start
-    stub_request(:head, "https://logs.google.com:777/os//").
-      with(basic_auth: ['john', 'doe']).
-    to_return(:status => 200, :body => "", :headers => {})
-    # check if template exists
-    stub_request(:get, "https://logs.google.com:777/os//#{endpoint}/logstash-test.template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # create template
-    stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/logstash-test.template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if alias exists
-    stub_request(:head, "https://logs.google.com:777/os//_alias/myapp_deflector-test.template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # put the alias for the index
-    stub_request(:put, "https://logs.google.com:777/os//%3Cfluentd-test.template-default-000001%3E").
-      with(basic_auth: ['john', 'doe']).
-      to_return(status: 200, body: "", headers: {})
-    stub_request(:put, "https://logs.google.com:777/os//%3Cfluentd-test.template-default-000001%3E/#{alias_endpoint}/myapp_deflector-test.template").
-      with(basic_auth: ['john', 'doe'],
-           body: "{\"aliases\":{\"myapp_deflector-test.template\":{\"is_write_index\":true}}}").
-      to_return(:status => 200, :body => "", :headers => {})
-    stub_opensearch_info("https://logs.google.com:777/os//")
-
-    driver(config)
-
-    elastic_request = stub_opensearch("https://logs.google.com:777/os//_bulk")
-    driver.run(default_tag: 'test.template', shutdown: false) do
-      driver.feed(sample_record)
-    end
-    assert_equal('fluentd-test.template', index_cmds.first['index']['_index'])
-
-    assert_equal ["myapp_deflector-test.template"], driver.instance.alias_indexes
-    assert_equal ["logstash-test.template"], driver.instance.template_names
-
-    assert_requested(elastic_request)
-
-    sleep 0.1 until driver.instance.alias_indexes.empty?
-    sleep 0.1 until driver.instance.template_names.empty?
-
-    assert_equal [], driver.instance.alias_indexes
-    assert_equal [], driver.instance.template_names
-  end
-
-  data("legacy_template" => [true, "_template"],
-       "new_template"    => [false, "_index_template"])
   def test_custom_template_create(data)
     use_legacy_template_flag, endpoint = data
     cwd = File.dirname(__FILE__)
@@ -1093,189 +950,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
 
   data("legacy_template" => [true, "_template"],
        "new_template"    => [false, "_index_template"])
-  def test_custom_template_with_rollover_index_create(data)
-    use_legacy_template_flag, endpoint = data
-    cwd = File.dirname(__FILE__)
-    template_file = if use_legacy_template_flag
-                      File.join(cwd, 'test_alias_template.json')
-                    else
-                      File.join(cwd, 'test_index_alias_template.json')
-                    end
-
-    config = %{
-      host            logs.google.com
-      port            777
-      scheme          https
-      path            /os/
-      user            john
-      password        doe
-      template_name   myapp_alias_template
-      template_file   #{template_file}
-      customize_template {"--appid--": "myapp-logs","--index_prefix--":"mylogs"}
-      rollover_index  true
-      index_date_pattern now/w{xxxx.ww}
-      index_name    mylogs
-      application_name myapp
-      use_legacy_template #{use_legacy_template_flag}
-    }
-
-    # connection start
-    stub_request(:head, "https://logs.google.com:777/os//").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if template exists
-    stub_request(:get, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # creation
-    stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # creation of index which can rollover
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-%7Bnow%2Fw%7Bxxxx.ww%7D%7D-000001%3E").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if alias exists
-    stub_request(:head, "https://logs.google.com:777/os//_alias/mylogs").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # put the alias for the index
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-%7Bnow%2Fw%7Bxxxx.ww%7D%7D-000001%3E/#{alias_endpoint}/mylogs").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    stub_opensearch_info("https://logs.google.com:777/os//")
-
-    driver(config)
-
-    assert_requested(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template", times: 1)
-  end
-
-  data("legacy_template" => [true, "_template"],
-       "new_template"    => [false, "_index_template"])
-  def test_custom_template_with_rollover_index_create_and_deflector_alias(data)
-    use_legacy_template_flag, endpoint = data
-    cwd = File.dirname(__FILE__)
-    template_file = if use_legacy_template_flag
-                      File.join(cwd, 'test_alias_template.json')
-                    else
-                      File.join(cwd, 'test_index_alias_template.json')
-                    end
-
-    config = %{
-      host            logs.google.com
-      port            777
-      scheme          https
-      path            /os/
-      user            john
-      password        doe
-      template_name   myapp_alias_template
-      template_file   #{template_file}
-      customize_template {"--appid--": "myapp-logs","--index_prefix--":"mylogs"}
-      rollover_index  true
-      index_date_pattern now/w{xxxx.ww}
-      deflector_alias myapp_deflector
-      index_name    mylogs
-      application_name myapp
-      use_legacy_template #{use_legacy_template_flag}
-    }
-
-    # connection start
-    stub_request(:head, "https://logs.google.com:777/os//").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if template exists
-    stub_request(:get, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # creation
-    stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # creation of index which can rollover
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-%7Bnow%2Fw%7Bxxxx.ww%7D%7D-000001%3E").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if alias exists
-    stub_request(:head, "https://logs.google.com:777/os//_alias/myapp_deflector").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # put the alias for the index
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-%7Bnow%2Fw%7Bxxxx.ww%7D%7D-000001%3E/#{alias_endpoint}/myapp_deflector").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    stub_opensearch_info("https://logs.google.com:777/os//")
-
-    driver(config)
-
-    assert_requested(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template", times: 1)
-  end
-
-  data("legacy_template" => [true, "_template"],
-       "new_template"    => [false, "_index_template"])
-  def test_custom_template_with_rollover_index_create_with_logstash_format(data)
-    use_legacy_template_flag, endpoint = data
-    cwd = File.dirname(__FILE__)
-    template_file = if use_legacy_template_flag
-                      File.join(cwd, 'test_alias_template.json')
-                    else
-                      File.join(cwd, 'test_index_alias_template.json')
-                    end
-
-    config = %{
-      host            logs.google.com
-      port            777
-      scheme          https
-      path            /os/
-      user            john
-      password        doe
-      template_name   myapp_alias_template
-      template_file   #{template_file}
-      customize_template {"--appid--": "myapp-logs","--index_prefix--":"mylogs"}
-      rollover_index  true
-      index_date_pattern now/w{xxxx.ww}
-      logstash_format true
-      logstash_prefix mylogs
-      application_name myapp
-      use_legacy_template #{use_legacy_template_flag}
-    }
-
-    timestr = Time.now.getutc.strftime("%Y.%m.%d")
-    # connection start
-    stub_request(:head, "https://logs.google.com:777/os//").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if template exists
-    stub_request(:get, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # creation
-    stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # creation of index which can rollover
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-#{timestr}-000001%3E").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if alias exists
-    stub_request(:head, "https://logs.google.com:777/os//_alias/mylogs-#{timestr}").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # put the alias for the index
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-#{timestr}-000001%3E/#{alias_endpoint}/mylogs-#{timestr}").
-      with(basic_auth: ['john', 'doe'],
-           body: "{\"aliases\":{\"mylogs-#{timestr}\":{\"is_write_index\":true}}}").
-      to_return(:status => 200, :body => "", :headers => {})
-
-    driver(config)
-
-    stub_opensearch_info("https://logs.google.com:777/os//")
-    driver.run(default_tag: 'custom-test') do
-      driver.feed(sample_record)
-    end
-  end
-
-  data("legacy_template" => [true, "_template"],
-       "new_template"    => [false, "_index_template"])
   def test_template_overwrite(data)
     use_legacy_template_flag, endpoint = data
     cwd = File.dirname(__FILE__)
@@ -1352,66 +1026,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
       to_return(:status => 200, :body => "", :headers => {})
     # creation
     stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    stub_opensearch_info("https://logs.google.com:777/os//")
-
-    driver(config)
-
-    assert_requested(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template", times: 1)
-  end
-
-  data("legacy_template" => [true, "_template"],
-       "new_template"    => [false, "_index_template"])
-  def test_custom_template_with_rollover_index_overwrite(data)
-    use_legacy_template_flag, endpoint = data
-    cwd = File.dirname(__FILE__)
-    template_file = if use_legacy_template_flag
-                      File.join(cwd, 'test_template.json')
-                    else
-                      File.join(cwd, 'test_index_template.json')
-                    end
-
-    config = %{
-      host            logs.google.com
-      port            777
-      scheme          https
-      path            /os/
-      user            john
-      password        doe
-      template_name   myapp_alias_template
-      template_file   #{template_file}
-      template_overwrite true
-      customize_template {"--appid--": "myapp-logs","--index_prefix--":"mylogs"}
-      deflector_alias myapp_deflector
-      rollover_index  true
-      index_name    mylogs
-      application_name myapp
-      use_legacy_template #{use_legacy_template_flag}
-    }
-
-    # connection start
-    stub_request(:head, "https://logs.google.com:777/os//").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if template exists
-    stub_request(:get, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # creation
-    stub_request(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # creation of index which can rollover
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-%7Bnow%2Fd%7D-000001%3E").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 200, :body => "", :headers => {})
-    # check if alias exists
-    stub_request(:head, "https://logs.google.com:777/os//_alias/myapp_deflector").
-      with(basic_auth: ['john', 'doe']).
-      to_return(:status => 404, :body => "", :headers => {})
-    # put the alias for the index
-    stub_request(:put, "https://logs.google.com:777/os//%3Cmylogs-myapp-%7Bnow%2Fd%7D-000001%3E/#{alias_endpoint}/myapp_deflector").
       with(basic_auth: ['john', 'doe']).
       to_return(:status => 200, :body => "", :headers => {})
     stub_opensearch_info("https://logs.google.com:777/os//")

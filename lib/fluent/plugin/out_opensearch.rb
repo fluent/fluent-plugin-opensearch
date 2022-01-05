@@ -52,7 +52,6 @@ module Fluent::Plugin
 
     RequestInfo = Struct.new(:host, :index, :target_index, :alias)
 
-    attr_reader :alias_indexes
     attr_reader :template_names
     attr_reader :ssl_version_options
     attr_reader :compressable_connection
@@ -110,10 +109,8 @@ module Fluent::Plugin
     config_param :template_file, :string, :default => nil
     config_param :template_overwrite, :bool, :default => false
     config_param :customize_template, :hash, :default => nil
-    config_param :rollover_index, :string, :default => false
     config_param :index_date_pattern, :string, :default => "now/d"
     config_param :index_separator, :string, :default => "-"
-    config_param :deflector_alias, :string, :default => nil
     config_param :application_name, :string, :default => "default"
     config_param :templates, :hash, :default => nil
     config_param :max_retry_putting_template, :integer, :default => 10
@@ -207,7 +204,6 @@ module Fluent::Plugin
         log.info "host placeholder and template installation makes your OpenSearch cluster a bit slow down(beta)."
       end
 
-      @alias_indexes = []
       @template_names = []
       if !dry_run?
         if @template_name && @template_file
@@ -216,7 +212,7 @@ module Fluent::Plugin
               alias_method :template_installation, :template_installation_actual
             end
           else
-            template_installation_actual(@deflector_alias ? @deflector_alias : @index_name, @template_name, @customize_template, @application_name, @index_name)
+            template_installation_actual(@template_name, @customize_template, @application_name, @index_name)
           end
         end
         if @templates
@@ -234,7 +230,6 @@ module Fluent::Plugin
           log.info('Clean up the indices and template names cache')
 
           @truncate_mutex.synchronize {
-            @alias_indexes.clear
             @template_names.clear
           }
         end
@@ -680,11 +675,6 @@ module Fluent::Plugin
       else
         customize_template = nil
       end
-      if @deflector_alias
-        deflector_alias = extract_placeholders(@deflector_alias, chunk)
-      else
-        deflector_alias = nil
-      end
       if @application_name
         application_name = extract_placeholders(@application_name, chunk)
       else
@@ -695,7 +685,7 @@ module Fluent::Plugin
       else
         pipeline = nil
       end
-      return logstash_prefix, logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, pipeline
+      return logstash_prefix, logstash_dateformat, index_name, template_name, customize_template, application_name, pipeline
     end
 
     def multi_workers_ready?
@@ -819,7 +809,7 @@ module Fluent::Plugin
     end
 
     def process_message(tag, meta, header, time, record, affinity_target_indices, extracted_values)
-      logstash_prefix, logstash_dateformat, index_name, _template_name, _customize_template, _deflector_alias, application_name, pipeline = extracted_values
+      logstash_prefix, logstash_dateformat, index_name, _template_name, _customize_template, application_name, pipeline = extracted_values
 
       if @flatten_hashes
         record = flatten_record(record)
@@ -916,36 +906,29 @@ module Fluent::Plugin
         @customize_template&.values&.any? { |value| placeholder?(:customize_template, value.to_s) } ||
         placeholder?(:logstash_prefix, @logstash_prefix.to_s) ||
         placeholder?(:logstash_dateformat, @logstash_dateformat.to_s) ||
-        placeholder?(:deflector_alias, @deflector_alias.to_s) ||
         placeholder?(:application_name, @application_name.to_s) ||
       log.debug("Need substitution: #{need_substitution}")
       need_substitution
     end
 
-    def template_installation(deflector_alias, template_name, customize_template, application_name, target_index, host)
+    def template_installation(template_name, customize_template, application_name, target_index, host)
       # for safety.
     end
 
-    def template_installation_actual(deflector_alias, template_name, customize_template, application_name, target_index, host=nil)
+    def template_installation_actual(template_name, customize_template, application_name, target_index, host=nil)
       if template_name && @template_file
-        if !@logstash_format && (deflector_alias.nil? || (@alias_indexes.include? deflector_alias)) && (@template_names.include? template_name)
-          if deflector_alias
-            log.debug("Index alias #{deflector_alias} and template #{template_name} already exist (cached)")
-          else
-            log.debug("Template #{template_name} already exists (cached)")
-          end
+        if !@logstash_format && @template_names.include?(template_name)
+          log.debug("Template #{template_name} already exists (cached)")
         else
           retry_operate(@max_retry_putting_template,
                         @fail_on_putting_template_retry_exceed,
                         @catch_transport_exception_on_retry) do
             if customize_template
-              template_custom_install(template_name, @template_file, @template_overwrite, customize_template, deflector_alias, host, target_index, @index_separator)
+              template_custom_install(template_name, @template_file, @template_overwrite, customize_template, host, target_index, @index_separator)
             else
-              template_install(template_name, @template_file, @template_overwrite, deflector_alias, host, target_index, @index_separator)
+              template_install(template_name, @template_file, @template_overwrite, host, target_index, @index_separator)
             end
-            create_rollover_alias(target_index, @rollover_index, deflector_alias, application_name, @index_date_pattern, @index_separator, host)
           end
-          @alias_indexes << deflector_alias unless deflector_alias.nil?
           @template_names << template_name
         end
       end
@@ -954,8 +937,8 @@ module Fluent::Plugin
     # send_bulk given a specific bulk request, the original tag,
     # chunk, and bulk_message_count
     def send_bulk(data, tag, chunk, bulk_message_count, extracted_values, info)
-      _logstash_prefix, _logstash_dateformat, index_name, template_name, customize_template, deflector_alias, application_name, _pipeline  = extracted_values
-      template_installation(deflector_alias, template_name, customize_template, application_name, index_name, info.host)
+      _logstash_prefix, _logstash_dateformat, index_name, template_name, customize_template, application_name, _pipeline  = extracted_values
+      template_installation(template_name, customize_template, application_name, index_name, info.host)
 
       begin
 

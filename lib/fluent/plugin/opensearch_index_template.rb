@@ -78,7 +78,7 @@ module Fluent::OpenSearchIndexTemplate
     end
   end
 
-  def template_install(name, template_file, overwrite, deflector_alias_name = nil, host = nil, target_index = nil, index_separator = '-')
+  def template_install(name, template_file, overwrite, host = nil, target_index = nil, index_separator = '-')
     if overwrite
       template_put(name,
                    get_template(template_file), host)
@@ -95,7 +95,7 @@ module Fluent::OpenSearchIndexTemplate
     end
   end
 
-  def template_custom_install(template_name, template_file, overwrite, customize_template, deflector_alias_name, host, target_index, index_separator)
+  def template_custom_install(template_name, template_file, overwrite, customize_template, host, target_index, index_separator)
     custom_template = get_custom_template(template_file, customize_template)
 
     if overwrite
@@ -108,32 +108,6 @@ module Fluent::OpenSearchIndexTemplate
       else
         log.debug("Template '#{template_name}' configured and already installed.")
       end
-    end
-  end
-
-  def create_rollover_alias(target_index, rollover_index, deflector_alias_name, app_name, index_date_pattern, index_separator, host)
-     # request to create alias.
-    if rollover_index
-      if !client.indices.exists_alias(:name => deflector_alias_name)
-        if @logstash_format
-          index_name_temp = '<'+target_index+'-000001>'
-        else
-          if index_date_pattern.empty?
-            index_name_temp = '<'+target_index.downcase+index_separator+app_name.downcase+'-000001>'
-          else
-            index_name_temp = '<'+target_index.downcase+index_separator+app_name.downcase+'-{'+index_date_pattern+'}-000001>'
-          end
-        end
-        indexcreation(index_name_temp, host)
-        body = rollover_alias_payload(deflector_alias_name)
-        client.indices.put_alias(:index => index_name_temp, :name => deflector_alias_name,
-                                 :body => body)
-        log.info("The alias '#{deflector_alias_name}' is created for the index '#{index_name_temp}'")
-      else
-        log.debug("The alias '#{deflector_alias_name}' is already present")
-      end
-    else
-      log.debug("No index and alias creation action performed because rollover_index is set to: '#{rollover_index}'")
     end
   end
 
