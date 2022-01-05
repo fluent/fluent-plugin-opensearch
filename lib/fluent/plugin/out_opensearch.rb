@@ -50,7 +50,7 @@ module Fluent::Plugin
       end
     end
 
-    RequestInfo = Struct.new(:host, :index, :alias)
+    RequestInfo = Struct.new(:host, :index, :target_index, :alias)
 
     attr_reader :alias_indexes
     attr_reader :template_names
@@ -735,9 +735,9 @@ module Fluent::Plugin
         begin
           meta, header, record = process_message(tag, meta, header, time, record, affinity_target_indices, extracted_values)
           info = if @include_index_in_url
-                   RequestInfo.new(host, meta.delete("_index".freeze), meta.delete("_alias".freeze))
+                   RequestInfo.new(host, meta.delete("_index".freeze), meta["_index".freeze], meta.delete("_alias".freeze))
                  else
-                   RequestInfo.new(host, nil, meta.delete("_alias".freeze))
+                   RequestInfo.new(host, nil, meta["_index".freeze], meta.delete("_alias".freeze))
                  end
 
           if split_request?(bulk_message, info)

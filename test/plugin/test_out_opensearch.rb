@@ -2539,11 +2539,11 @@ class OpenSearchOutputTest < Test::Unit::TestCase
       driver.feed(sample_record('my_id' => my_id_value))
       driver.feed(sample_record('my_id' => my_id_value2))
     end
-    assert_equal(4, index_cmds_all_requests[0].count)
+    assert_equal(2, index_cmds_all_requests.count)
     assert_equal('logstash-2021.04.29', index_cmds_all_requests[0].first['update']['_index'])
     assert_equal(my_id_value, index_cmds_all_requests[0].first['update']['_id'])
-    assert_equal('logstash-2021.04.28', index_cmds_all_requests[0][-2]['update']['_index'])
-    assert_equal(my_id_value2, index_cmds_all_requests[0][-2]['update']['_id'])
+    assert_equal('logstash-2021.04.28', index_cmds_all_requests[1].first['update']['_index'])
+    assert_equal(my_id_value2, index_cmds_all_requests[1].first['update']['_id'])
   end
 
   def test_writes_to_affinity_target_index_same_id_dublicated_write_to_oldest_index
