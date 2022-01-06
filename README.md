@@ -1323,7 +1323,7 @@ See [OpenSearch Filter GenID document](README.OpenSearchGenID.md)
 
 Since Elasticsearch 7.9 that is predessor software of OpenSearch, Data Streams was introduced.
 
-**NOTE:** This feature is slated to support. Currently, this fetaure is not supported yet.
+**NOTE:** This feature is slated to official support. Currently, this fetaure is beta.
 
 You can enable this feature by specifying `@type opensearch_data_stream`.
 
@@ -1332,8 +1332,7 @@ You can enable this feature by specifying `@type opensearch_data_stream`.
 data_stream_name test
 ```
 
-When `@type opensearch_data_stream` is used, unless specified with `data_stream_ilm_name` and `data_stream_template_name`, ILM default policy is set to the specified data stream.
-Then, the matching index template is also created automatically.
+The matching index template will be also created automatically.
 
 ### data_stream_name
 
