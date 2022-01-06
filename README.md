@@ -4,8 +4,6 @@
 ![Testing on Windows](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Windows/badge.svg?branch=main)
 ![Testing on macOS](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20macOS/badge.svg?branch=main)
 ![Testing on Ubuntu](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Ubuntu/badge.svg?branch=main)
-[![Coverage Status](https://coveralls.io/repos/fluent/fluent-plugin-opensearch/badge.png)](https://coveralls.io/r/fluent/fluent-plugin-opensearch)
-[![Code Climate](https://codeclimate.com/github/fluent/fluent-plugin-opensearch.png)](https://codeclimate.com/github/fluent/fluent-plugin-opensearch)
 
 Send your logs to OpenSearch (and search them with OpenSearch Dashboard maybe?)
 
