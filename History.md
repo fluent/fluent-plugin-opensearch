@@ -2,5 +2,5 @@
 
 ### [Unreleased]
 
-### 0.1.0
- - Initial gem release.
+### 1.0.0
+ - Initial public gem release.
