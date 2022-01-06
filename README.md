@@ -1346,16 +1346,6 @@ You can specify an existing matching index template for the data stream. If not 
 
 Default value is `data_stream_name`.
 
-### data_stream_ilm_name
-
-You can specify the name of an existing ILM policy, which will be applied to the data stream. If not present, it creates a new ILM default policy (unless `data_stream_template_name` is defined, in that case the ILM will be set to the one specified in the matching index template).
-
-Default value is `data_stream_name`.
-
-There are some limitations about naming rule.
-
-In more detail, please refer to the [Path parameters](https://www.elastic.co/guide/en/opensearch/reference/master/indices-create-data-stream.html#indices-create-data-stream-api-path-params).
-
 ## Troubleshooting
 
 See [Troubleshooting document](README.Troubleshooting.md)
