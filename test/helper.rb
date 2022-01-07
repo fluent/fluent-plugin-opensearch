@@ -1,3 +1,4 @@
+# coding: utf-8
 # SPDX-License-Identifier: Apache-2.0
 #
 # The fluent-plugin-opensearch Contributors require contributions made to
@@ -25,14 +26,24 @@
 # under the License.
 
 require 'simplecov'
+require 'simplecov'
+require 'simplecov-lcov'
+
+SimpleCov::Formatter::LcovFormatter.config do |config|
+  config.report_with_single_file = true
+  config.single_report_path = 'coverage/lcov.info'
+end
+
+SimpleCov.formatter = SimpleCov::Formatter::MultiFormatter.new([
+  SimpleCov::Formatter::HTMLFormatter,
+  SimpleCov::Formatter::LcovFormatter
+])
+
 SimpleCov.start do
   add_filter do |src|
     !(src.filename =~ /^#{SimpleCov.root}\/lib/)
   end
 end
-
-require 'coveralls'
-Coveralls.wear!
 
 # needs to be after simplecov but before test/unit, because fluentd sets default
 # encoding to ASCII-8BIT, but coverall might load git data which could contain a
