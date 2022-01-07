@@ -25,6 +25,8 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency 'fluentd', '>= 0.14.22'
   s.add_runtime_dependency 'excon', '>= 0'
   s.add_runtime_dependency 'opensearch-ruby'
+  s.add_runtime_dependency "aws-sdk-core", "~> 3"
+  s.add_runtime_dependency "faraday_middleware-aws-sigv4"
 
 
   s.add_development_dependency 'rake', '>= 0'
