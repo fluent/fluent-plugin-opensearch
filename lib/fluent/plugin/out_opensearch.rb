@@ -288,7 +288,7 @@ module Fluent::Plugin
         log.warn "Consider to specify log_level with @log_level." unless log_level
       end
       # Specify @sniffer_class before calling #client.
-      # #detect_es_major_version uses #client.
+      # #detect_os_major_version uses #client.
       @sniffer_class = nil
       begin
         @sniffer_class = Object.const_get(@sniffer_class_name) if @sniffer_class_name
