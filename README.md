@@ -4,6 +4,7 @@
 ![Testing on Windows](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Windows/badge.svg?branch=main)
 ![Testing on macOS](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20macOS/badge.svg?branch=main)
 ![Testing on Ubuntu](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Ubuntu/badge.svg?branch=main)
+[![Coverage Status](https://coveralls.io/repos/github/fluent/fluent-plugin-opensearch/badge.svg?branch=upload-coverage-into-coveralls)](https://coveralls.io/github/fluent/fluent-plugin-opensearch?branch=main)
 
 Send your logs to OpenSearch (and search them with OpenSearch Dashboard maybe?)
 
