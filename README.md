@@ -283,7 +283,6 @@ logstash_dateformat %Y.%m. # defaults to "%Y.%m.%d"
 ### pipeline
 
 This param is to set a pipeline id of your opensearch to be added into the request, you can configure ingest node.
-For more information: [![Ingest node](https://www.elastic.co/guide/en/opensearch/reference/master/ingest.html)]
 
 ```
 pipeline pipeline_id
