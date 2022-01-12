@@ -54,6 +54,8 @@ begin
   require_relative 'oj_serializer'
 rescue LoadError
 end
+require 'aws-sdk-core'
+require 'faraday_middleware/aws_sigv4'
 
 module Fluent::Plugin
   class OpenSearchOutput < Output
@@ -177,6 +179,20 @@ module Fluent::Plugin
       config_param :chunk_id_key, :string, :default => "chunk_id".freeze
     end
 
+    config_section :endpoint, multi: false do
+      config_param :region, :string
+      config_param :url do |c|
+        c.chomp("/")
+      end
+      config_param :access_key_id, :string, :default => ""
+      config_param :secret_access_key, :string, :default => "", secret: true
+      config_param :assume_role_arn, :string, :default => nil
+      config_param :ecs_container_credentials_relative_uri, :string, :default => nil #Set with AWS_CONTAINER_CREDENTIALS_RELATIVE_URI environment variable value
+      config_param :assume_role_session_name, :string, :default => "fluentd"
+      config_param :assume_role_web_identity_token_file, :string, :default => nil
+      config_param :sts_credentials_region, :string, :default => nil
+    end
+
     config_section :buffer do
       config_set_default :@type, DEFAULT_BUFFER_TYPE
       config_set_default :chunk_keys, ['tag']
@@ -191,10 +207,68 @@ module Fluent::Plugin
       super
     end
 
+    ######################################################################################################
+    # This creating AWS credentials code part is heavily based on fluent-plugin-aws-elasticsearch-service:
+    # https://github.com/atomita/fluent-plugin-aws-elasticsearch-service/blob/master/lib/fluent/plugin/out_aws-elasticsearch-service.rb#L73-L134
+    ######################################################################################################
+    def aws_credentials(conf)
+      credentials = nil
+      unless conf[:access_key_id].empty? || conf[:secret_access_key].empty?
+        credentials = Aws::Credentials.new(conf[:access_key_id], conf[:secret_access_key])
+      else
+        if conf[:assume_role_arn].nil?
+          aws_container_credentials_relative_uri = conf[:ecs_container_credentials_relative_uri] || ENV["AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"]
+          if aws_container_credentials_relative_uri.nil?
+            credentials = Aws::SharedCredentials.new({retries: 2}).credentials
+            credentials ||= Aws::InstanceProfileCredentials.new.credentials
+            credentials ||= Aws::ECSCredentials.new.credentials
+          else
+            credentials = Aws::ECSCredentials.new({
+                            credential_path: aws_container_credentials_relative_uri
+                          }).credentials
+          end
+        else
+          if conf[:assume_role_web_identity_token_file].nil?
+            credentials = Aws::AssumeRoleCredentials.new({
+                            role_arn: conf[:assume_role_arn],
+                            role_session_name: conf[:assume_role_session_name],
+                            region: sts_creds_region(conf)
+                          }).credentials
+          else
+            credentials = Aws::AssumeRoleWebIdentityCredentials.new({
+                            role_arn: conf[:assume_role_arn],
+                            web_identity_token_file: conf[:assume_role_web_identity_token_file],
+                            region: sts_creds_region(conf)
+                          }).credentials
+          end
+        end
+      end
+      raise "No valid AWS credentials found." unless credentials.set?
+
+      credentials
+    end
+
+    def sts_creds_region(conf)
+      conf[:sts_credentials_region] || conf[:region]
+    end
+    ###############################
+    # AWS credential part is ended.
+    ###############################
+
     def configure(conf)
       compat_parameters_convert(conf, :buffer)
 
       super
+
+      if @endpoint
+        # here overrides default value of reload_connections to false because
+        # AWS Elasticsearch Service doesn't return addresses of nodes and Elasticsearch client
+        # fails to reload connections properly. This ends up "temporarily failed to flush the buffer"
+        # error repeating forever. See this discussion for details:
+        # https://discuss.elastic.co/t/elasitcsearch-ruby-raises-cannot-get-new-connection-from-pool-error/36252
+        @reload_connections = false
+      end
+
       if placeholder_substitution_needed_for_template?
         # nop.
       elsif not @buffer_config.chunk_keys.include? "tag" and
@@ -518,7 +592,21 @@ module Fluent::Plugin
       @_os ||= begin
         @compressable_connection = compress_connection
         @current_config = connection_options[:hosts].clone
-        adapter_conf = lambda {|f| f.adapter @http_backend, @backend_options }
+        adapter_conf = if @endpoint
+                         lambda do |f|
+                           f.request(
+                             :aws_sigv4,
+                             service: 'es',
+                             region: @endpoint.region,
+                             credentials: aws_credentials(@endpoint),
+                           )
+
+                           f.adapter @http_backend, @backend_options
+                         end
+                       else
+                         lambda {|f| f.adapter @http_backend, @backend_options }
+                       end
+
         local_reload_connections = @reload_connections
         if local_reload_connections && @reload_after > DEFAULT_RELOAD_AFTER
           local_reload_connections = @reload_after
@@ -572,7 +660,14 @@ module Fluent::Plugin
 
     def get_connection_options(con_host=nil)
 
-      hosts = if con_host || @hosts
+      hosts = if @endpoint # For AWS OpenSearch Service
+        uri = URI(@endpoint.url)
+        host = %w(user password path).inject(host: uri.host, port: uri.port, scheme: uri.scheme) do |hash, key|
+          hash[key.to_sym] = uri.public_send(key) unless uri.public_send(key).nil? || uri.public_send(key) == ''
+          hash
+        end
+        [host]
+      elsif con_host || @hosts
         (con_host || @hosts).split(',').map do |host_str|
           # Support legacy hosts format host:port,host:port,host:port...
           if host_str.match(%r{^[^:]+(\:\d+)?$})

@@ -101,6 +101,7 @@ Send your logs to OpenSearch (and search them with OpenSearch Dashboard maybe?)
 * [Configuration - OpenSearch Input](#configuration---opensearch-input)
 * [Configuration - OpenSearch Filter GenID](#configuration---opensearch-filter-genid)
 * [Configuration - OpenSearch Output Data Stream](#configuration---opensearch-output-data-stream)
+* [Configuration - AWS OpenSearch Service](#configuration---aws-opensearch-service)
 * [Troubleshooting](#troubleshooting)
 * [Contact](#contact)
 * [Contributing](#contributing)
@@ -1346,6 +1347,184 @@ This parameter is mandatory for `opensearch_data_stream`.
 You can specify an existing matching index template for the data stream. If not present, it creates a new matching index template.
 
 Default value is `data_stream_name`.
+
+## Configuration - AWS OpenSearch Service
+
+### \<endpoint\> section
+
+AWS OpenSearch Service related settings are placed in `<endpoint>` directive.
+
+Configuration example is below:
+
+```aconf
+<match es.**>
+  type opensearch
+  logstash_format true
+  include_tag_key true
+  flush_interval 1s
+
+  <endpoint>
+    url https://CLUSTER_ENDPOINT_URL
+    region YOUR_AWS_REGION
+    # access_key_id "secret"
+    # secret_access_key "foo_secret"
+  </endpoint>
+</match>
+```
+
+#### region
+
+Specify AWS region.
+
+```aconf
+<endpoint>
+  region us-east-2 # e.g.) AWS Ohio region
+  # other stuffs.
+</endpoint>
+```
+
+#### url
+
+Specify AWS OpenSearch Service endpoint.
+
+```aconf
+<endpoint>
+  url https://CLUSTER_ENDPOINT_URL
+  # other stuffs.
+</endpoint>
+```
+
+**NOTE:** This plugin will remove trailing slashes automatically. You don't need to pay attension to the trailing slash characters.
+
+#### access_key_id
+
+Specify AWS access key.
+
+```aconf
+<endpoint>
+  access_key_id YOUR_AWS_ACCESS_KEY
+  # other stuffs.
+</endpoint>
+```
+
+#### secret_access_key
+
+Specify AWS secret access key.
+
+```aconf
+<endpoint>
+  secret_access_key YOUR_AWS_SECRET_ACCESS_KEY
+  # other stuffs.
+</endpoint>
+```
+
+### IAM
+
+If you don't want to use `access_key_id` and `secret_access_key` on your endpoint configuration, you should use IAM policies instead.
+
+#### Assign an IAM instance role
+
+The first step needs to assign an IAM instance role (ROLE) to your EC2 instances. You should change its name appropriately.
+The attaching role should not contain no policy: We're using the role as the authenticating factor and placing the policy into the OpenSearch cluster.
+
+Then, you should configure a policy for the OpenSearch cluster policy with substitution s for the capitalized terms:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::ACCOUNT:role/ROLE"
+      },
+      "Action": "es:*",
+      "Resource": "arn:aws:es:AWS_REGION:ACCOUNT:domain/OPENSEARCH_DOMAIN/*"
+    },
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": "es:*",
+      "Resource": "arn:aws:es:AWS_REGION:ACCOUNT:domain/OPENSEARCH_DOMAIN/*",
+      "Condition": {
+        "IpAddress": {
+          "aws:SourceIp": [
+            "1.2.3.4/32",
+            "5.6.7.8/32"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+The above policy will allow your Fluentd hosts and any traffic coming from the specified IP addresses (you querying OpenSearch Dashboard) to access the various endpoints. While not ideally secure it should allow you to get up and ingesting logs without anything
+
+#### Use STS assumed role as the authenticating factor
+
+Additionally, you can use a STS assumed role as the authenticating factor and instruct the plugin to assume this role.
+This is useful for cross-account access and when assigning a standard role is not possible. In this case, the endpoint configuration looks like:
+
+```aconf
+<endpoint>
+  url https://CLUSTER_ENDPOINT_URL
+  region YOUR_AWS_REGION
+  assume_role_arn arn:aws:sts::ACCOUNT:role/ROLE
+  assume_role_session_name SESSION_ID # Defaults to fluentd if omitted
+  sts_credentials_region YOUR_AWS_STS_REGION # Defaults to region if omitted
+</endpoint>
+```
+
+The policy attached into your OpenSearch cluster becomes something like:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:sts::ACCOUNT:assumed-role/ROLE/SESSION_ID"
+      },
+      "Action": "es:*",
+      "Resource": "arn:aws:es:AWS_REGION:ACCOUNT:domain/ES_DOMAIN/*"
+    }
+  ]
+}
+```
+
+#### Ensure the environment to assume roles
+
+You'll need to ensure that the environment where the Fluentd plugin runs to have the capability to assume this role, by attaching a policy something like this to the instance profile:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": {
+        "Effect": "Allow",
+        "Action": "sts:AssumeRole",
+        "Resource": "arn:aws:iam::ACCOUNT:role/ROLE"
+    }
+}
+```
+
+### EKS
+
+If you want to use IAM roles for service accounts on your Amazon EKS clusters, please refer to the official documentation and specify a Service Account for your fluentd Pod.
+
+In this case, the endpoint configuration looks like:
+
+```aconf
+<endpoint>
+  url https://CLUSTER_ENDPOINT_URL
+  region eu-west-1
+  assume_role_arn "#{ENV['AWS_ROLE_ARN']}"
+  assume_role_web_identity_token_file "#{ENV['AWS_WEB_IDENTITY_TOKEN_FILE']}"
+</endpoint>
+```
 
 ## Troubleshooting
 
