@@ -10,6 +10,7 @@
   + [Fluentd seems to hang if it unable to connect OpenSearch, why?](#fluentd-seems-to-hang-if-it-unable-to-connect-opensearch-why)
   + [How to specify index codec](#how-to-specify-index-codec)
   + [Cannot push logs to OpenSearch with connect_write timeout reached, why?](#cannot-push-logs-to-opensearch-with-connect_write-timeout-reached-why)
+  + [Index State Management feature is not provided, why?](#index-state-management-feature-is-not-provided-why)
 
 
 ## Troubleshooting
@@ -468,3 +469,14 @@ This warnings is usually caused by exhaused OpenSearch cluster due to resource s
 If CPU usage is spiked and OpenSearch cluster is eating up CPU resource, this issue is caused by CPU resource shortage.
 
 Check your OpenSearch cluster health status and resource usage.
+
+### Index State Management feature is not provided, why?
+
+From OpenSearch documentation, Index Lifecycle Management (ILM) feature is renamed to Index State Management (ISM). And it is not recommended to use from logging agents.
+
+Also, Ruby client library has a license issue for the original ILM part. To avoid this license issue, OpenSearch Ruby client library team decided to remove this part from their Ruby client code:
+https://github.com/opensearch-project/opensearch-ruby/pull/4
+
+Index State Management (ISM) is encouraged to use via OpenSearch Dashboards that is formerly known as Kibana.
+
+See also: https://opensearch.org/docs/latest/im-plugin/ism/index/
