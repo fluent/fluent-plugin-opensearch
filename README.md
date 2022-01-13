@@ -8,8 +8,6 @@
 
 Send your logs to OpenSearch (and search them with OpenSearch Dashboard maybe?)
 
-:warning: **This plugin is still under development.**
-
 * [Installation](#installation)
 * [Usage](#usage)
   + [Index templates](#index-templates)
