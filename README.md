@@ -1004,10 +1004,10 @@ when Fluentd must connect through a load balancer or proxy.  The parameter `snif
 ability to provide your own Sniffer class to implement whatever connection reload logic you require.  In addition,
 there is a new `Fluent::Plugin::OpenSearchSimpleSniffer` class which reuses the hosts given in the configuration, which
 is typically the hostname of the load balancer or proxy.  For example, a configuration like this would cause
-connections to `logging-es` to reload every 100 operations:
+connections to `logging-os` to reload every 100 operations:
 
 ```
-host logging-es
+host logging-os
 port 9200
 reload_connections true
 sniffer_class_name Fluent::Plugin::OpenSearchSimpleSniffer
