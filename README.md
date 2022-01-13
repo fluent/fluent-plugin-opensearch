@@ -8,8 +8,6 @@
 
 Send your logs to OpenSearch (and search them with OpenSearch Dashboard maybe?)
 
-:warning: **This plugin is still under development.**
-
 * [Installation](#installation)
 * [Usage](#usage)
   + [Index templates](#index-templates)
@@ -1348,9 +1346,13 @@ Default value is `data_stream_name`.
 
 ## Configuration - AWS OpenSearch Service
 
+This settings are effective for AWS OpenSearch Service that is successor of AWS Elasticsearch service.
+
+
 ### \<endpoint\> section
 
 AWS OpenSearch Service related settings are placed in `<endpoint>` directive.
+This is because `elasticsearch-ruby` does not work with OpenSearch and `opensearch-ruby` does not work with Elasticsearch.
 
 Configuration example is below:
 
