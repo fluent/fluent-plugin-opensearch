@@ -58,6 +58,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
   end
 
   RESPONSE_ACKNOWLEDGED = {"acknowledged": true}
+  UNAUTHORIZED_DATA_STREAM_EXCEPTION = {"error": {}, "status": 401}
   DUPLICATED_DATA_STREAM_EXCEPTION = {"error": {}, "status": 400}
   NONEXISTENT_DATA_STREAM_EXCEPTION = {"error": {}, "status": 404}
 
@@ -83,6 +84,11 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
 
   def stub_nonexistent_template?(name="foo_tpl")
     stub_request(:get, "http://localhost:9200/_index_template/#{name}").to_return(:status => [404, OpenSearch::Transport::Transport::Errors::NotFound])
+  end
+
+  def stub_nonexistent_template_retry?(name="foo_tpl")
+    stub_request(:get, "http://localhost:9200/_index_template/#{name}").
+      to_return({ status: 500, body: 'Internal Server Error' }, { status: 404, body: '{}' })
   end
 
   def stub_bulk_feed(datastream_name="foo", template_name="foo_tpl")
@@ -312,6 +318,21 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
         'data_stream_name' => 'foo',
         'data_stream_template_name' => "foo_tpl"
       })
+    assert_equal "foo", driver(conf).instance.data_stream_name
+  end
+
+  def test_datastream_configure_retry
+    stub_elastic_info
+    stub_nonexistent_template_retry?
+    stub_index_template
+    stub_nonexistent_data_stream?
+    stub_data_stream
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => "foo_tpl"
+    })
     assert_equal "foo", driver(conf).instance.data_stream_name
   end
 
