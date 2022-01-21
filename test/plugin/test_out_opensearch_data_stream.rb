@@ -58,7 +58,6 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
   end
 
   RESPONSE_ACKNOWLEDGED = {"acknowledged": true}
-  UNAUTHORIZED_DATA_STREAM_EXCEPTION = {"error": {}, "status": 401}
   DUPLICATED_DATA_STREAM_EXCEPTION = {"error": {}, "status": 400}
   NONEXISTENT_DATA_STREAM_EXCEPTION = {"error": {}, "status": 404}
 
