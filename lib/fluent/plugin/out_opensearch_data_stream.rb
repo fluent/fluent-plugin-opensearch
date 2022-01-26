@@ -33,8 +33,12 @@ module Fluent::Plugin
       unless @use_placeholder
         begin
           @data_stream_names = [@data_stream_name]
-          create_index_template(@data_stream_name, @data_stream_template_name, @host)
-          create_data_stream(@data_stream_name)
+          retry_operate(@max_retry_putting_template,
+                        @fail_on_putting_template_retry_exceed,
+                        @catch_transport_exception_on_retry) do
+            create_index_template(@data_stream_name, @data_stream_template_name, @host)
+            create_data_stream(@data_stream_name)
+          end
         rescue => e
           raise Fluent::ConfigError, "Failed to create data stream: <#{@data_stream_name}> #{e.message}"
         end
