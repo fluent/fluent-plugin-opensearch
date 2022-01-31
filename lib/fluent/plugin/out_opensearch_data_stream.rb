@@ -29,18 +29,29 @@ module Fluent::Plugin
         @data_stream_names = []
       end
 
+      host = data_stream_connection
+
       unless @use_placeholder
         begin
           @data_stream_names = [@data_stream_name]
           retry_operate(@max_retry_putting_template,
                         @fail_on_putting_template_retry_exceed,
                         @catch_transport_exception_on_retry) do
-            create_index_template(@data_stream_name, @data_stream_template_name, @host)
-            create_data_stream(@data_stream_name, @host)
+            create_index_template(@data_stream_name, @data_stream_template_name, host)
+            create_data_stream(@data_stream_name, host)
           end
         rescue => e
           raise Fluent::ConfigError, "Failed to create data stream: <#{@data_stream_name}> #{e.message}"
         end
+      end
+    end
+
+    # FIXME: Currently, the first element from hosts is only used and extracted.
+    def data_stream_connection
+      if host = get_connection_options[:hosts].first
+        "#{host[:scheme]}://#{host[:host]}:#{host[:port]}#{host[:path]}"
+      else
+        @host
       end
     end
 
@@ -91,7 +102,7 @@ module Fluent::Plugin
       }
       begin
         # TODO: Use X-Pack equivalent performing DataStream operation method on the following line
-        response = client.perform_request('GET', "/_data_stream/#{datastream_name}", {}, params)
+        response = client(host).perform_request('GET', "/_data_stream/#{datastream_name}", {}, params)
         return (not response.is_a?(OpenSearch::Transport::Transport::Errors::NotFound))
       rescue OpenSearch::Transport::Transport::Errors::NotFound => e
         log.info "Specified data stream does not exist. Will be created: <#{e}>"

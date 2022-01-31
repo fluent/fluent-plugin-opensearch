@@ -61,43 +61,43 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
   DUPLICATED_DATA_STREAM_EXCEPTION = {"error": {}, "status": 400}
   NONEXISTENT_DATA_STREAM_EXCEPTION = {"error": {}, "status": 404}
 
-  def stub_index_template(name="foo_tpl")
-    stub_request(:put, "http://localhost:9200/_index_template/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
+  def stub_index_template(name="foo_tpl", url="http://localhost:9200")
+    stub_request(:put, "#{url}/_index_template/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
   end
 
-  def stub_data_stream(name="foo")
-    stub_request(:put, "http://localhost:9200/_data_stream/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
+  def stub_data_stream(name="foo", url="localhost:9200")
+    stub_request(:put, "#{url}/_data_stream/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
   end
 
-  def stub_existent_data_stream?(name="foo")
-    stub_request(:get, "http://localhost:9200/_data_stream/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
+  def stub_existent_data_stream?(name="foo", url="localhost:9200")
+    stub_request(:get, "#{url}/_data_stream/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
   end
 
-  def stub_existent_template?(name="foo_tpl")
-    stub_request(:get, "http://localhost:9200/_index_template/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
+  def stub_existent_template?(name="foo_tpl", url="localhost:9200")
+    stub_request(:get, "#{url}/_index_template/#{name}").to_return(:status => [200, RESPONSE_ACKNOWLEDGED])
   end
 
-  def stub_nonexistent_data_stream?(name="foo")
-    stub_request(:get, "http://localhost:9200/_data_stream/#{name}").to_return(:status => [404, OpenSearch::Transport::Transport::Errors::NotFound])
+  def stub_nonexistent_data_stream?(name="foo", url="localhost:9200")
+    stub_request(:get, "#{url}/_data_stream/#{name}").to_return(:status => [404, OpenSearch::Transport::Transport::Errors::NotFound])
   end
 
-  def stub_nonexistent_template?(name="foo_tpl")
-    stub_request(:get, "http://localhost:9200/_index_template/#{name}").to_return(:status => [404, OpenSearch::Transport::Transport::Errors::NotFound])
+  def stub_nonexistent_template?(name="foo_tpl", url="http://localhost:9200")
+    stub_request(:get, "#{url}/_index_template/#{name}").to_return(:status => [404, OpenSearch::Transport::Transport::Errors::NotFound])
   end
 
-  def stub_nonexistent_template_retry?(name="foo_tpl")
-    stub_request(:get, "http://localhost:9200/_index_template/#{name}").
+  def stub_nonexistent_template_retry?(name="foo_tpl", url="http://localhost:9200")
+    stub_request(:get, "#{url}/_index_template/#{name}").
       to_return({ status: 500, body: 'Internal Server Error' }, { status: 404, body: '{}' })
   end
 
-  def stub_bulk_feed(datastream_name="foo", template_name="foo_tpl")
-    stub_request(:post, "http://localhost:9200/#{datastream_name}/_bulk").with do |req|
+  def stub_bulk_feed(datastream_name="foo", template_name="foo_tpl", url="http://localhost:9200")
+    stub_request(:post, "#{url}/#{datastream_name}/_bulk").with do |req|
       # bulk data must be pair of OP and records
       # {"create": {}}\nhttp://localhost:9200/_data_stream/foo_bar
       # {"@timestamp": ...}
       @bulk_records += req.body.split("\n").size / 2
     end
-    stub_request(:post, "http://localhost:9200/#{template_name}/_bulk").with do |req|
+    stub_request(:post, "http://#{url}#{template_name}/_bulk").with do |req|
       # bulk data must be pair of OP and records
       # {"create": {}}\nhttp://localhost:9200/_data_stream/foo_bar
       # {"@timestamp": ...}
@@ -105,13 +105,13 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     end
   end
 
-  def stub_elastic_info(url="http://localhost:9200/", version="1.2.2")
+  def stub_opensearch_info(url="http://localhost:9200/", version="1.2.2", headers={})
     body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
-    stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
+    stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' }.merge(headers) })
   end
 
   def stub_default(datastream_name="foo", template_name="foo_tpl", host="http://localhost:9200")
-    stub_elastic_info(host)
+    stub_opensearch_info(host)
     stub_nonexistent_template?(template_name)
     stub_index_template(template_name)
     stub_nonexistent_data_stream?(datastream_name)
@@ -320,8 +320,40 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert_equal "foo", driver(conf).instance.data_stream_name
   end
 
+  def test_hosts_list_configure
+    config = %{
+      hosts            https://john:password@host1:443/elastic/,http://host2
+      path             /default_path
+      user             default_user
+      password         default_password
+      data_stream_name default
+    }
+    stub_opensearch_info("https://host1:443/elastic//", "1.2.2",
+                         {'Authorization'=>'Basic am9objpwYXNzd29yZA=='})
+    stub_opensearch_info("http://host2/default_path/_data_stream/default", "1.2.2",
+                         {'Authorization'=>'Basic am9objpwYXNzd29yZA=='})
+    stub_existent_data_stream?("default", "https://host1/elastic/")
+    instance = driver(config).instance
+
+    assert_equal 2, instance.get_connection_options[:hosts].length
+    host1, host2 = instance.get_connection_options[:hosts]
+
+    assert_equal 'host1', host1[:host]
+    assert_equal 443, host1[:port]
+    assert_equal 'https', host1[:scheme]
+    assert_equal 'john', host1[:user]
+    assert_equal 'password', host1[:password]
+    assert_equal '/elastic/', host1[:path]
+
+    assert_equal 'host2', host2[:host]
+    assert_equal 'http', host2[:scheme]
+    assert_equal 'default_user', host2[:user]
+    assert_equal 'default_password', host2[:password]
+    assert_equal '/default_path', host2[:path]
+  end
+
   def test_datastream_configure_retry
-    stub_elastic_info
+    stub_opensearch_info
     stub_nonexistent_template_retry?
     stub_index_template
     stub_nonexistent_data_stream?
@@ -339,7 +371,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     stub_index_template
     stub_existent_data_stream?
     stub_data_stream
-    stub_elastic_info
+    stub_opensearch_info
     conf = config_element(
       'ROOT', '', {
         '@type' => OPENSEARCH_DATA_STREAM_TYPE,
@@ -353,7 +385,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     stub_index_template
     stub_existent_data_stream?
     stub_data_stream
-    stub_elastic_info
+    stub_opensearch_info
     conf = config_element(
       'ROOT', '', {
         '@type' => OPENSEARCH_DATA_STREAM_TYPE,
@@ -483,7 +515,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
       connection_resets += 1
       raise Faraday::ConnectionFailed, "Test message"
     end
-    stub_elastic_info("https://logs.google.com:778/")
+    stub_opensearch_info("https://logs.google.com:778/")
 
     assert_raise(Fluent::Plugin::OpenSearchError::RetryableOperationExhaustedFailure) do
       driver(config)
