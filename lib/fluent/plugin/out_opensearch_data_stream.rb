@@ -158,8 +158,9 @@ module Fluent::Plugin
     def write(chunk)
       data_stream_name = @data_stream_name
       data_stream_template_name = @data_stream_template_name
-      host = @host
+      host = nil
       if @use_placeholder
+        host = extract_placeholders(@host, chunk)
         data_stream_name = extract_placeholders(@data_stream_name, chunk)
         data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk)
         unless @data_stream_names.include?(data_stream_name)
