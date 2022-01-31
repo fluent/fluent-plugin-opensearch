@@ -329,9 +329,9 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
       data_stream_name default
     }
     stub_opensearch_info("https://host1:443/elastic//", "1.2.2",
-                         {'Authorization'=>'Basic am9objpwYXNzd29yZA=='})
+                         {'Authorization'=>"Basic #{Base64.encode64('john:password').split.first}"})
     stub_opensearch_info("http://host2/default_path/_data_stream/default", "1.2.2",
-                         {'Authorization'=>'Basic am9objpwYXNzd29yZA=='})
+                         {'Authorization'=>"Basic #{Base64.encode64('john:password').split.first}"})
     stub_existent_data_stream?("default", "https://host1/elastic/")
     instance = driver(config).instance
 
