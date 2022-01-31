@@ -29,29 +29,18 @@ module Fluent::Plugin
         @data_stream_names = []
       end
 
-      host = data_stream_connection
-
       unless @use_placeholder
         begin
           @data_stream_names = [@data_stream_name]
           retry_operate(@max_retry_putting_template,
                         @fail_on_putting_template_retry_exceed,
                         @catch_transport_exception_on_retry) do
-            create_index_template(@data_stream_name, @data_stream_template_name, host)
-            create_data_stream(@data_stream_name, host)
+            create_index_template(@data_stream_name, @data_stream_template_name)
+            create_data_stream(@data_stream_name)
           end
         rescue => e
           raise Fluent::ConfigError, "Failed to create data stream: <#{@data_stream_name}> #{e.message}"
         end
-      end
-    end
-
-    # FIXME: Currently, the first element from hosts is only used and extracted.
-    def data_stream_connection
-      if host = get_connection_options[:hosts].first
-        "#{host[:scheme]}://#{host[:host]}:#{host[:port]}#{host[:path]}"
-      else
-        @host
       end
     end
 
@@ -80,7 +69,7 @@ module Fluent::Plugin
     end
 
     def create_index_template(datastream_name, template_name, host = nil)
-      return if data_stream_exist?(datastream_name) or template_exists?(template_name, host)
+      return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
       body = {
         "index_patterns" => ["#{datastream_name}*"],
         "data_stream" => {},
