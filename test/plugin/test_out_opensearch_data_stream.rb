@@ -105,13 +105,13 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     end
   end
 
-  def stub_elastic_info(url="http://localhost:9200/", version="1.2.2")
+  def stub_opensearch_info(url="http://localhost:9200/", version="1.2.2", headers={})
     body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
-    stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
+    stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' }.merge(headers) })
   end
 
   def stub_default(datastream_name="foo", template_name="foo_tpl", host="http://localhost:9200")
-    stub_elastic_info(host)
+    stub_opensearch_info(host)
     stub_nonexistent_template?(template_name)
     stub_index_template(template_name)
     stub_nonexistent_data_stream?(datastream_name)
@@ -353,7 +353,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
   end
 
   def test_datastream_configure_retry
-    stub_elastic_info
+    stub_opensearch_info
     stub_nonexistent_template_retry?
     stub_index_template
     stub_nonexistent_data_stream?
@@ -371,7 +371,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     stub_index_template
     stub_existent_data_stream?
     stub_data_stream
-    stub_elastic_info
+    stub_opensearch_info
     conf = config_element(
       'ROOT', '', {
         '@type' => OPENSEARCH_DATA_STREAM_TYPE,
@@ -385,7 +385,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     stub_index_template
     stub_existent_data_stream?
     stub_data_stream
-    stub_elastic_info
+    stub_opensearch_info
     conf = config_element(
       'ROOT', '', {
         '@type' => OPENSEARCH_DATA_STREAM_TYPE,
@@ -515,7 +515,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
       connection_resets += 1
       raise Faraday::ConnectionFailed, "Test message"
     end
-    stub_elastic_info("https://logs.google.com:778/")
+    stub_opensearch_info("https://logs.google.com:778/")
 
     assert_raise(Fluent::Plugin::OpenSearchError::RetryableOperationExhaustedFailure) do
       driver(config)
