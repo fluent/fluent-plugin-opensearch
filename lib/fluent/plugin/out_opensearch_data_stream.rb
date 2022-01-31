@@ -91,7 +91,7 @@ module Fluent::Plugin
       }
       begin
         # TODO: Use X-Pack equivalent performing DataStream operation method on the following line
-        response = client.perform_request('GET', "/_data_stream/#{datastream_name}", {}, params)
+        response = client(host).perform_request('GET', "/_data_stream/#{datastream_name}", {}, params)
         return (not response.is_a?(OpenSearch::Transport::Transport::Errors::NotFound))
       rescue OpenSearch::Transport::Transport::Errors::NotFound => e
         log.info "Specified data stream does not exist. Will be created: <#{e}>"
