@@ -320,6 +320,38 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert_equal "foo", driver(conf).instance.data_stream_name
   end
 
+  def test_hosts_list_configure
+    config = %{
+      hosts            https://john:password@host1:443/elastic/,http://host2
+      path             /default_path
+      user             default_user
+      password         default_password
+      data_stream_name default
+    }
+    stub_opensearch_info("https://host1:443/elastic//", "1.2.2",
+                         {'Authorization'=>'Basic am9objpwYXNzd29yZA=='})
+    stub_opensearch_info("http://host2/default_path/_data_stream/default", "1.2.2",
+                         {'Authorization'=>'Basic am9objpwYXNzd29yZA=='})
+    stub_existent_data_stream?("default", "https://host1/elastic/")
+    instance = driver(config).instance
+
+    assert_equal 2, instance.get_connection_options[:hosts].length
+    host1, host2 = instance.get_connection_options[:hosts]
+
+    assert_equal 'host1', host1[:host]
+    assert_equal 443, host1[:port]
+    assert_equal 'https', host1[:scheme]
+    assert_equal 'john', host1[:user]
+    assert_equal 'password', host1[:password]
+    assert_equal '/elastic/', host1[:path]
+
+    assert_equal 'host2', host2[:host]
+    assert_equal 'http', host2[:scheme]
+    assert_equal 'default_user', host2[:user]
+    assert_equal 'default_password', host2[:password]
+    assert_equal '/default_path', host2[:path]
+  end
+
   def test_datastream_configure_retry
     stub_elastic_info
     stub_nonexistent_template_retry?
