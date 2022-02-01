@@ -1394,7 +1394,7 @@ Specify AWS OpenSearch Service endpoint.
 </endpoint>
 ```
 
-**NOTE:** This plugin will remove trailing slashes automatically. You don't need to pay attension to the trailing slash characters.
+**NOTE:** This plugin will remove trailing slashes automatically. You don't need to pay attention to the trailing slash characters.
 
 #### access_key_id
 
