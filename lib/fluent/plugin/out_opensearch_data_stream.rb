@@ -46,7 +46,7 @@ module Fluent::Plugin
 
     def validate_data_stream_parameters
       {"data_stream_name" => @data_stream_name,
-       "data_stream_template_name"=> @data_stream_template_name}.each do |parameter, value|
+       "data_stream_template_name" => @data_stream_template_name}.each do |parameter, value|
         unless valid_data_stream_parameters?(value)
           unless start_with_valid_characters?(value)
             if not_dots?(value)
@@ -69,19 +69,25 @@ module Fluent::Plugin
     end
 
     def create_index_template(datastream_name, template_name, host = nil)
-      return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
-      body = {
-        "index_patterns" => ["#{datastream_name}*"],
-        "data_stream" => {},
-      }
-      params = {
-        name: template_name,
-        body: body
-      }
-      retry_operate(@max_retry_putting_template,
-                    @fail_on_putting_template_retry_exceed,
-                    @catch_transport_exception_on_retry) do
-        client(host).indices.put_index_template(params)
+      # Create index template from file
+      if @template_file
+        template_installation_actual(template_name, @customize_template, @application_name, datastream_name, host)
+      else # Create default index template
+        return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
+        body = {
+          "index_patterns" => ["#{datastream_name}*"],
+          "data_stream" => {},
+        }
+
+        params = {
+          name: template_name,
+          body: body
+        }
+        retry_operate(@max_retry_putting_template,
+                      @fail_on_putting_template_retry_exceed,
+                      @catch_transport_exception_on_retry) do
+          client(host).indices.put_index_template(params)
+        end
       end
     end
 
