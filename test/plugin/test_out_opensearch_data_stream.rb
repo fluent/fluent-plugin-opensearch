@@ -367,6 +367,19 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert_equal "foo", driver(conf).instance.data_stream_name
   end
 
+  def test_template_file
+    stub_default
+    cwd = File.dirname(__FILE__)
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => "foo_tpl",
+      'template_file' => File.join(cwd, 'datastream_template.json')
+    })
+    assert_equal "foo", driver(conf).instance.data_stream_name
+  end
+
   def test_existent_data_stream
     stub_index_template
     stub_existent_data_stream?
