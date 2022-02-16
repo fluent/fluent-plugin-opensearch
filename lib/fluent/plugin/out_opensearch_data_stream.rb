@@ -160,7 +160,11 @@ module Fluent::Plugin
       data_stream_template_name = @data_stream_template_name
       host = nil
       if @use_placeholder
-        host = extract_placeholders(@host, chunk)
+        host = if @hosts
+                 extract_placeholders(@hosts, chunk)
+               else
+                 extract_placeholders(@host, chunk)
+               end
         data_stream_name = extract_placeholders(@data_stream_name, chunk)
         data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk)
         unless @data_stream_names.include?(data_stream_name)
