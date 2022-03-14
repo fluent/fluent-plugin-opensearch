@@ -9,7 +9,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
   include FlexMock::TestCase
   include Fluent::Test::Helpers
 
-  attr_accessor :bulk_records
+  attr_accessor :bulk_records, :index_cmds
 
   OPENSEARCH_DATA_STREAM_TYPE = "opensearch_data_stream"
 
@@ -96,12 +96,14 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
       # {"create": {}}\nhttp://localhost:9200/_data_stream/foo_bar
       # {"@timestamp": ...}
       @bulk_records += req.body.split("\n").size / 2
+      @index_cmds = req.body.split("\n").map {|r| JSON.parse(r) }
     end
     stub_request(:post, "http://#{url}#{template_name}/_bulk").with do |req|
       # bulk data must be pair of OP and records
       # {"create": {}}\nhttp://localhost:9200/_data_stream/foo_bar
       # {"@timestamp": ...}
       @bulk_records += req.body.split("\n").size / 2
+      @index_cmds = req.body.split("\n").map {|r| JSON.parse(r) }
     end
   end
 
@@ -591,4 +593,72 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
 
     assert_equal(4, connection_resets)
   end
+
+  def test_uses_custom_time_key
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'time_key' => 'vtm'
+    })
+
+    ts = DateTime.new(2021,2,3).iso8601(9)
+    record = {
+      'vtm' => ts,
+      'message' => 'Sample Record'
+    }
+
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert(index_cmds[1].has_key? '@timestamp')
+    assert_equal(ts, index_cmds[1]['@timestamp'])
+  end
+
+  def test_uses_custom_time_key_with_format
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'time_key' => 'vtm',
+      'time_key_format' => '%Y-%m-%d %H:%M:%S.%N%z'
+    })
+    ts = "2021-02-03 13:14:01.673+02:00"
+    record = {
+      'vtm' => ts,
+      'message' => 'Sample Record'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert(index_cmds[1].has_key? '@timestamp')
+    assert_equal(DateTime.parse(ts).iso8601(9), index_cmds[1]['@timestamp'])
+  end
+
+  def test_record_no_timestamp
+    stub_default
+    stub_bulk_feed
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl'
+    })
+    record = {
+      'message' => 'Sample Record'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert(index_cmds[1].has_key? '@timestamp')
+  end
+
 end

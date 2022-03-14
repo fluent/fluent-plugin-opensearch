@@ -191,9 +191,17 @@ module Fluent::Plugin
       tag = chunk.metadata.tag
       chunk.msgpack_each do |time, record|
         next unless record.is_a? Hash
-
         begin
-          record.merge!({"@timestamp" => Time.at(time).iso8601(@time_precision)})
+          if record.has_key?(TIMESTAMP_FIELD)
+            rts = record[TIMESTAMP_FIELD]
+            dt = parse_time(rts, time, tag)
+          elsif record.has_key?(@time_key)
+            rts = record[@time_key]
+            dt = parse_time(rts, time, tag)
+          else
+            dt = Time.at(time).to_datetime
+          end
+          record.merge!({"@timestamp" => dt.iso8601(@time_precision)})
           bulk_message = append_record_to_messages(CREATE_OP, {}, headers, record, bulk_message)
         rescue => e
           router.emit_error_event(tag, time, record, e)
