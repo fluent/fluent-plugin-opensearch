@@ -2320,23 +2320,11 @@ class OpenSearchOutputTest < Test::Unit::TestCase
   end
 
   data(
-    "OpenSearch default"=> {"os_version" => 1, "_type" => "_doc"},
+    "OpenSearch default"=> {"os_version" => 1, "_type" => "_doc", "suppress_type" => false},
+    "Suppressed type" => {"os_version" => 1, "_type" => nil, "suppress_type" => true},
   )
   def test_writes_to_speficied_type(data)
-    driver('', data["os_version"]).configure("")
-    stub_opensearch
-    stub_opensearch_info
-    driver.run(default_tag: 'test') do
-      driver.feed(sample_record)
-    end
-    assert_equal(data['_type'], index_cmds.first['index']['_type'])
-  end
-
-  data(
-    "OpenSearch 1"=> {"os_version" => 1, "_type" => "_doc"},
-  )
-  def test_writes_to_speficied_type_with_placeholders(data)
-    driver('', data["os_version"]).configure("")
+    driver('', data["os_version"]).configure("suppress_type_name #{data['suppress_type']}")
     stub_opensearch
     stub_opensearch_info
     driver.run(default_tag: 'test') do

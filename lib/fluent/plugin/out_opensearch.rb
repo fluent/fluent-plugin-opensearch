@@ -110,6 +110,7 @@ module Fluent::Plugin
     config_param :logstash_prefix_separator, :string, :default => '-'
     config_param :logstash_dateformat, :string, :default => "%Y.%m.%d"
     config_param :utc_index, :bool, :default => true
+    config_param :suppress_type_name, :bool, :default => false
     config_param :index_name, :string, :default => "fluentd"
     config_param :id_key, :string, :default => nil
     config_param :write_operation, :string, :default => "index"
@@ -978,8 +979,12 @@ module Fluent::Plugin
         end
       end
 
-      # OpenSearch only supports "_doc".
-      target_type = DEFAULT_TYPE_NAME
+      if @suppress_type_name
+        target_type = nil
+      else
+        # OpenSearch only supports "_doc".
+        target_type = DEFAULT_TYPE_NAME
+      end
 
       meta.clear
       meta["_index".freeze] = target_index
