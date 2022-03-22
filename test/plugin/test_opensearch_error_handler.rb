@@ -37,12 +37,14 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     attr_accessor :unrecoverable_error_types
     attr_accessor :log_os_400_reason
     attr_accessor :write_operation
+    attr_accessor :emit_error_label_event
     def initialize(log, log_os_400_reason = false)
       @log = log
       @write_operation = 'index'
       @error_events = []
       @unrecoverable_error_types = ["out_of_memory_error", "rejected_execution_exception"]
       @log_os_400_reason = log_os_400_reason
+      @emit_error_label_event = true
     end
 
     def router
@@ -135,6 +137,44 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     end
   end
 
+  class TEST400ResponseReasonWithoutErrorLog < self
+    def setup
+      Fluent::Test.setup
+      @log_device = Fluent::Test::DummyLogDevice.new
+      dl_opts = {:log_level => ServerEngine::DaemonLogger::DEBUG}
+      logger = ServerEngine::DaemonLogger.new(@log_device, dl_opts)
+      @log = Fluent::Log.new(logger)
+      @plugin = TestPlugin.new(@log)
+      @handler = Fluent::Plugin::OpenSearchErrorHandler.new(@plugin)
+      @plugin.emit_error_label_event = false
+    end
+
+    def test_400_responses_reason_log
+      records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
+      response = parse_response(%({
+      "took" : 0,
+      "errors" : true,
+      "items" : [
+        {
+          "create" : {
+            "_index" : "foo",
+            "status" : 400,
+            "error" : {
+              "type"  : "mapper_parsing_exception",
+              "reason" : "failed to parse"
+            }
+          }
+        }
+      ]
+     }))
+      chunk = MockChunk.new(records)
+      dummy_extracted_values = []
+      @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
+      assert_equal(0, @plugin.error_events.size)
+      assert_true(@plugin.error_events.empty?)
+    end
+  end
+
   class TEST400ResponseReasonNoDebug < self
     def setup
       Fluent::Test.setup
@@ -174,6 +214,45 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
       assert_true(exception_message.include?(expected_log),
                   "Exception do not contain '#{exception_message}' '#{expected_log}'")
       assert_true(@plugin.error_events[0][:error].respond_to?(:backtrace))
+    end
+  end
+
+  class TEST400ResponseReasonNoDebugAndNoErrorLog < self
+    def setup
+      Fluent::Test.setup
+      @log_device = Fluent::Test::DummyLogDevice.new
+      dl_opts = {:log_level => ServerEngine::DaemonLogger::INFO}
+      logger = ServerEngine::DaemonLogger.new(@log_device, dl_opts)
+      @log = Fluent::Log.new(logger)
+      @plugin = TestPlugin.new(@log)
+      @handler = Fluent::Plugin::OpenSearchErrorHandler.new(@plugin)
+      @plugin.log_os_400_reason = true
+      @plugin.emit_error_label_event = false
+    end
+
+    def test_400_responses_reason_log
+      records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
+      response = parse_response(%({
+      "took" : 0,
+      "errors" : true,
+      "items" : [
+        {
+          "create" : {
+            "_index" : "foo",
+            "status" : 400,
+            "error" : {
+              "type"  : "mapper_parsing_exception",
+              "reason" : "failed to parse"
+            }
+          }
+        }
+      ]
+     }))
+      chunk = MockChunk.new(records)
+      dummy_extracted_values = []
+      @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
+      assert_equal(0, @plugin.error_events.size)
+      assert_true(@plugin.error_events.empty?)
     end
   end
 

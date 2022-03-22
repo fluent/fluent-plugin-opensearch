@@ -73,6 +73,7 @@ module Fluent::Plugin
     config_param :ca_file, :string, :default => nil
     config_param :ssl_version, :enum, list: [:SSLv23, :TLSv1, :TLSv1_1, :TLSv1_2], :default => :TLSv1_2
     config_param :with_transporter_log, :bool, :default => false
+    config_param :emit_error_label_event, :bool, :default => true
     config_param :sniffer_class_name, :string, :default => nil
     config_param :custom_headers, :hash, :default => {}
     config_param :docinfo_fields, :array, :default => ['_index', '_type', '_id']
@@ -180,6 +181,13 @@ module Fluent::Plugin
       }
     end
 
+    def emit_error_label_event(&block)
+      # If `emit_error_label_event` is specified as false, error event emittions are not occurred.
+      if emit_error_label_event
+        block.call
+      end
+    end
+
     def start
       super
 
@@ -224,7 +232,9 @@ module Fluent::Plugin
     def parse_time(value, event_time, tag)
       @timestamp_parser.call(value)
     rescue => e
-      router.emit_error_event(@timestamp_parse_error_tag, Fluent::Engine.now, {'tag' => tag, 'time' => event_time, 'format' => @timestamp_key_format, 'value' => value}, e)
+      emit_error_label_event do
+        router.emit_error_event(@timestamp_parse_error_tag, Fluent::Engine.now, {'tag' => tag, 'time' => event_time, 'format' => @timestamp_key_format, 'value' => value}, e)
+      end
       return Time.at(event_time).to_time
     end
 

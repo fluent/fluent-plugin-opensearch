@@ -61,6 +61,13 @@ class Fluent::Plugin::OpenSearchErrorHandler
     end
   end
 
+  def emit_error_label_event(&block)
+    # If `emit_error_label_event` is specified as false, error event emittions are not occurred.
+    if @plugin.emit_error_label_event
+      block.call
+    end
+  end
+
   def handle_error(response, tag, chunk, bulk_message_count, extracted_values)
     items = response['items']
     if items.nil? || !items.is_a?(Array)
@@ -127,12 +134,16 @@ class Fluent::Plugin::OpenSearchErrorHandler
             reason += " [reason]: \'#{item[write_operation]['error']['reason']}\'"
           end
         end
-        @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
+        emit_error_label_event do
+          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
+        end
       else
         if item[write_operation]['error'].is_a?(String)
           reason = item[write_operation]['error']
           stats[:errors_block_resp] += 1
-          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{reason}"))
+          emit_error_label_event do
+            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{reason}"))
+          end
           next
         elsif item[write_operation].has_key?('error') && item[write_operation]['error'].has_key?('type')
           type = item[write_operation]['error']['type']
@@ -141,7 +152,9 @@ class Fluent::Plugin::OpenSearchErrorHandler
             raise OpenSearchRequestAbortError, "Rejected OpenSearch due to #{type}"
           end
           if unrecoverable_record_error?(type)
-            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
+            emit_error_label_event do
+              @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
+            end
             next
           else
             retry_stream.add(time, rawrecord) unless unrecoverable_record_error?(type)
@@ -150,7 +163,9 @@ class Fluent::Plugin::OpenSearchErrorHandler
           # When we don't have a type field, something changed in the API
           # expected return values.
           stats[:errors_bad_resp] += 1
-          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - No error type provided in the response"))
+          emit_error_label_event do
+            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - No error type provided in the response"))
+          end
           next
         end
         stats[type] += 1

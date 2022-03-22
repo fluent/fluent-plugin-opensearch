@@ -160,6 +160,7 @@ module Fluent::Plugin
     config_param :validate_client_version, :bool, :default => false
     config_param :prefer_oj_serializer, :bool, :default => false
     config_param :unrecoverable_error_types, :array, :default => ["out_of_memory_error", "rejected_execution_exception"]
+    config_param :emit_error_label_event, :bool, :default => true
     config_param :verify_os_version_at_startup, :bool, :default => true
     config_param :default_opensearch_version, :integer, :default => DEFAULT_OPENSEARCH_VERSION
     config_param :log_os_400_reason, :bool, :default => false
@@ -462,6 +463,13 @@ module Fluent::Plugin
       placeholder_validities.include?(true)
     end
 
+    def emit_error_label_event(&block)
+      # If `emit_error_label_event` is specified as false, error event emittions are not occurred.
+      if @emit_error_label_event
+        block.call
+      end
+    end
+
     def compression
       !(@compression_level == :no_compression)
     end
@@ -578,7 +586,9 @@ module Fluent::Plugin
     def parse_time(value, event_time, tag)
       @time_parser.call(value)
     rescue => e
-      router.emit_error_event(@time_parse_error_tag, Fluent::Engine.now, {'tag' => tag, 'time' => event_time, 'format' => @time_key_format, 'value' => value}, e)
+      emit_error_label_event do
+        router.emit_error_event(@time_parse_error_tag, Fluent::Engine.now, {'tag' => tag, 'time' => event_time, 'format' => @time_key_format, 'value' => value}, e)
+      end
       return Time.at(event_time).to_datetime
     end
 
@@ -870,7 +880,9 @@ module Fluent::Plugin
             end
           end
         rescue => e
-          router.emit_error_event(tag, time, record, e)
+          emit_error_label_event do
+            router.emit_error_event(tag, time, record, e)
+          end
         end
       end
 
