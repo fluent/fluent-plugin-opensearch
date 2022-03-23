@@ -356,6 +356,15 @@ utc_index true
 
 By default, the records inserted into index `logstash-YYMMDD` with UTC (Coordinated Universal Time). This option allows to use local time if you describe utc_index to false.
 
+
+### suppress_type_name
+
+If OpenSearch cluster complains types removal warnings, this can be suppressed with:
+
+```
+suppress_type_name true
+```
+
 ### target_index_key
 
 Tell this plugin to find the index name to write to in the record under this key in preference to other mechanisms. Key can be specified as path to nested record using dot ('.') as a separator.
