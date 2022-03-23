@@ -17,6 +17,7 @@
   + [reload_on_failure](#reload_on_failure)
   + [resurrect_after](#resurrect_after)
   + [with_transporter_log](#with_transporter_log)
+  + [emit_error_label_event](#emit-error-label-event)
   + [Client/host certificate options](#clienthost-certificate-options)
   + [sniffer_class_name](#sniffer-class-name)
   + [custom_headers](#custom_headers)
@@ -188,6 +189,18 @@ We recommend to set this true if you start to debug this plugin.
 
 ```
 with_transporter_log true
+```
+
+### emit_error_label_event
+
+Default `emit_error_label_event` value is `true`.
+
+Emitting error label events is default behavior.
+
+When using the followin configuration, OpenSearch plugin will cut error events on error handler:
+
+```aconf
+emit_error_label_event false
 ```
 
 ### Client/host certificate options

@@ -204,7 +204,9 @@ module Fluent::Plugin
           record.merge!({"@timestamp" => dt.iso8601(@time_precision)})
           bulk_message = append_record_to_messages(CREATE_OP, {}, headers, record, bulk_message)
         rescue => e
-          router.emit_error_event(tag, time, record, e)
+          emit_error_label_event do
+            router.emit_error_event(tag, time, record, e)
+          end
         end
       end
 

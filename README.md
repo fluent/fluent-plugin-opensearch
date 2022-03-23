@@ -76,6 +76,7 @@ Send your logs to OpenSearch (and search them with OpenSearch Dashboards maybe?)
   + [reload_after](#reload-after)
   + [validate_client_version](#validate-client-version)
   + [unrecoverable_error_types](#unrecoverable-error-types)
+  + [emit_error_label_event](#emit-error-label-event)
   + [verify os version at startup](#verify_os_version_at_startup)
   + [default_opensearch_version](#default_opensearch_version)
   + [custom_headers](#custom_headers)
@@ -1104,6 +1105,18 @@ Then, remove `rejected_execution_exception` from `unrecoverable_error_types` par
 
 ```
 unrecoverable_error_types ["out_of_memory_error"]
+```
+
+### emit_error_label_event
+
+Default `emit_error_label_event` value is `true`.
+
+Emitting error label events is default behavior.
+
+When using the followin configuration, OpenSearch plugin will cut error events on error handler:
+
+```aconf
+emit_error_label_event false
 ```
 
 ### verify_os_version_at_startup
