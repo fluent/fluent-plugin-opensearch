@@ -161,6 +161,7 @@ module Fluent::Plugin
     config_param :validate_client_version, :bool, :default => false
     config_param :prefer_oj_serializer, :bool, :default => false
     config_param :unrecoverable_error_types, :array, :default => ["out_of_memory_error", "rejected_execution_exception"]
+    config_param :unrecoverable_record_types, :array, :default => ["json_parse_exception"]
     config_param :emit_error_label_event, :bool, :default => true
     config_param :verify_os_version_at_startup, :bool, :default => true
     config_param :default_opensearch_version, :integer, :default => DEFAULT_OPENSEARCH_VERSION
