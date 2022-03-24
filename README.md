@@ -76,6 +76,7 @@ Send your logs to OpenSearch (and search them with OpenSearch Dashboards maybe?)
   + [reload_after](#reload-after)
   + [validate_client_version](#validate-client-version)
   + [unrecoverable_error_types](#unrecoverable-error-types)
+  + [unrecoverable_record_types](#unrecoverable-record-types)
   + [emit_error_label_event](#emit-error-label-event)
   + [verify os version at startup](#verify_os_version_at_startup)
   + [default_opensearch_version](#default_opensearch_version)
@@ -1106,6 +1107,21 @@ Then, remove `rejected_execution_exception` from `unrecoverable_error_types` par
 ```
 unrecoverable_error_types ["out_of_memory_error"]
 ```
+
+
+### Unrecoverable Record Types
+
+Default `unrecoverable_record_types` parameter is set up loosely.
+Because `json_parse_exception` is caused by invalid JSON record.
+Another possible unrecoverable record error should be included within this paramater.
+
+If you want to handle `security_exception` as _unrecoverable exceptions_, please consider to change `unrecoverable_record_types` parameter from default value:
+
+```
+unrecoverable_record_types ["json_parse_exception", "security_exception"]
+```
+
+If this error type is included in OpenSearch response, an invalid record should be sent in `@ERROR` data pipeline.
 
 ### emit_error_label_event
 
