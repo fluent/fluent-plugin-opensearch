@@ -2,6 +2,13 @@
 
 ### [Unreleased]
 
+### 1.0.3
+ - Configurable unrecoverable record types (#40)
+ - Handle exceptions on retrieving AWS credentials (#39)
+ - Suppress emit error label events (#38)
+ - Provide suppress_type_name parameter (#29)
+ - Honor @time_key (data streams) (#28)
+
 ### 1.0.2
  - Honor @hosts parameter for Data Streams (#21)
  - Use template_file for Data Streams (#20)
