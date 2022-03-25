@@ -49,8 +49,12 @@ class Fluent::Plugin::OpenSearchErrorHandler
     unrecoverable_error_types.include?(type)
   end
 
+  def unrecoverable_record_types
+    @plugin.unrecoverable_record_types
+  end
+
   def unrecoverable_record_error?(type)
-    ['json_parse_exception'].include?(type)
+    unrecoverable_record_types.include?(type)
   end
 
   def log_os_400_reason(&block)

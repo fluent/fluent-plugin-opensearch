@@ -35,6 +35,7 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     attr_reader :log
     attr_reader :error_events
     attr_accessor :unrecoverable_error_types
+    attr_accessor :unrecoverable_record_types
     attr_accessor :log_os_400_reason
     attr_accessor :write_operation
     attr_accessor :emit_error_label_event
@@ -43,6 +44,7 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
       @write_operation = 'index'
       @error_events = []
       @unrecoverable_error_types = ["out_of_memory_error", "rejected_execution_exception"]
+      @unrecoverable_record_types = ["json_parse_exception"]
       @log_os_400_reason = log_os_400_reason
       @emit_error_label_event = true
     end
