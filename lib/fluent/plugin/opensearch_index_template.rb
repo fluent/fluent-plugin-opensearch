@@ -62,10 +62,10 @@ module Fluent::OpenSearchIndexTemplate
     client.transport.transport.host_unreachable_exceptions
   end
 
-  def retry_operate(max_retries, fail_on_retry_exceed = true, catch_trasport_exceptions = true)
+  def retry_operate(max_retries, fail_on_retry_exceed = true, catch_transport_exceptions = true)
     return unless block_given?
     retries = 0
-    transport_errors = OpenSearch::Transport::Transport::Errors.constants.map{ |c| OpenSearch::Transport::Transport::Errors.const_get c } if catch_trasport_exceptions
+    transport_errors = OpenSearch::Transport::Transport::Errors.constants.map{ |c| OpenSearch::Transport::Transport::Errors.const_get c } if catch_transport_exceptions
     begin
       yield
     rescue *host_unreachable_exceptions, *transport_errors, Timeout::Error => e
