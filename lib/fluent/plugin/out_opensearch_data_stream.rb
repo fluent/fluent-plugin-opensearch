@@ -36,7 +36,6 @@ module Fluent::Plugin
                         @fail_on_putting_template_retry_exceed,
                         @catch_transport_exception_on_retry) do
             create_index_template(@data_stream_name, @data_stream_template_name)
-            create_data_stream(@data_stream_name)
           end
         rescue => e
           raise Fluent::ConfigError, "Failed to create data stream: <#{@data_stream_name}> #{e.message}"
@@ -105,19 +104,6 @@ module Fluent::Plugin
       end
     end
 
-    def create_data_stream(datastream_name, host = nil)
-      return if data_stream_exist?(datastream_name, host)
-      params = {
-        name: datastream_name
-      }
-      retry_operate(@max_retry_putting_template,
-                    @fail_on_putting_template_retry_exceed,
-                    @catch_transport_exception_on_retry) do
-        # TODO: Use X-Pack equivalent performing DataStream operation method on the following line
-        client(host).perform_request('PUT', "/_data_stream/#{datastream_name}", {}, params)
-      end
-    end
-
     def template_exists?(name, host = nil)
       if @use_legacy_template
         client(host).indices.get_template(:name => name)
@@ -176,7 +162,6 @@ module Fluent::Plugin
         unless @data_stream_names.include?(data_stream_name)
           begin
             create_index_template(data_stream_name, data_stream_template_name, host)
-            create_data_stream(data_stream_name, host)
             @data_stream_names << data_stream_name
           rescue => e
             raise Fluent::ConfigError, "Failed to create data stream: <#{data_stream_name}> #{e.message}"
