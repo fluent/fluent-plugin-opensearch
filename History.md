@@ -2,6 +2,9 @@
 
 ### [Unreleased]
 
+### 1.0.4
+ - Automatically create data streams (#44)
+
 ### 1.0.3
  - Configurable unrecoverable record types (#40)
  - Handle exceptions on retrieving AWS credentials (#39)
