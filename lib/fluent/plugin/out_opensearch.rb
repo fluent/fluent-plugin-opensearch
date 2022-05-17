@@ -597,6 +597,11 @@ module Fluent::Plugin
 
       @_os = nil unless is_existing_connection(connection_options[:hosts])
       @_os = nil unless @compressable_connection == compress_connection
+      # If AWS credentials is set, consider to create #client information on every requests.
+      if @endpoint
+        @_os = nil
+        @_aws_credentials = aws_credentials(@endpoint)
+      end
 
       @_os ||= begin
         @compressable_connection = compress_connection
@@ -607,7 +612,7 @@ module Fluent::Plugin
                              :aws_sigv4,
                              service: 'es',
                              region: @endpoint.region,
-                             credentials: aws_credentials(@endpoint),
+                             credentials: @_aws_credentials,
                            )
 
                            f.adapter @http_backend, @backend_options
