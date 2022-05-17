@@ -439,6 +439,23 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert_equal 1, @bulk_records
   end
 
+  def test_placeholder_with_capital_letters
+    dsname = "foo_test.capital_letters"
+    tplname = "foo_tpl_test.capital_letters"
+    stub_default(dsname, tplname)
+    stub_bulk_feed(dsname, tplname)
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo_${tag}',
+        'data_stream_template_name' => "foo_tpl_${tag}"
+      })
+    driver(conf).run(default_tag: 'TEST.CAPITAL_LETTERS') do
+      driver.feed(sample_record)
+    end
+    assert_equal 1, @bulk_records
+  end
+
   def test_placeholder_params_unset
     dsname = "foo_test"
     tplname = "foo_test_template"

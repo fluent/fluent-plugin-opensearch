@@ -157,8 +157,8 @@ module Fluent::Plugin
                else
                  extract_placeholders(@host, chunk)
                end
-        data_stream_name = extract_placeholders(@data_stream_name, chunk)
-        data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk)
+        data_stream_name = extract_placeholders(@data_stream_name, chunk).downcase
+        data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk).downcase
         unless @data_stream_names.include?(data_stream_name)
           begin
             create_index_template(data_stream_name, data_stream_template_name, host)
