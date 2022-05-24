@@ -465,11 +465,8 @@ module Fluent::Plugin
       placeholder_validities.include?(true)
     end
 
-    def emit_error_label_event(&block)
-      # If `emit_error_label_event` is specified as false, error event emittions are not occurred.
-      if @emit_error_label_event
-        block.call
-      end
+    def emit_error_label_event?
+      !!@emit_error_label_event
     end
 
     def compression
@@ -588,7 +585,7 @@ module Fluent::Plugin
     def parse_time(value, event_time, tag)
       @time_parser.call(value)
     rescue => e
-      emit_error_label_event do
+      if emit_error_label_event?
         router.emit_error_event(@time_parse_error_tag, Fluent::Engine.now, {'tag' => tag, 'time' => event_time, 'format' => @time_key_format, 'value' => value}, e)
       end
       return Time.at(event_time).to_datetime
@@ -882,7 +879,7 @@ module Fluent::Plugin
             end
           end
         rescue => e
-          emit_error_label_event do
+          if emit_error_label_event?
             router.emit_error_event(tag, time, record, e)
           end
         end

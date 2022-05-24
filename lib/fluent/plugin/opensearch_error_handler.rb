@@ -65,11 +65,8 @@ class Fluent::Plugin::OpenSearchErrorHandler
     end
   end
 
-  def emit_error_label_event(&block)
-    # If `emit_error_label_event` is specified as false, error event emittions are not occurred.
-    if @plugin.emit_error_label_event
-      block.call
-    end
+  def emit_error_label_event?
+    !!@plugin.emit_error_label_event
   end
 
   def handle_error(response, tag, chunk, bulk_message_count, extracted_values)
@@ -138,14 +135,14 @@ class Fluent::Plugin::OpenSearchErrorHandler
             reason += " [reason]: \'#{item[write_operation]['error']['reason']}\'"
           end
         end
-        emit_error_label_event do
+        if emit_error_label_event?
           @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
         end
       else
         if item[write_operation]['error'].is_a?(String)
           reason = item[write_operation]['error']
           stats[:errors_block_resp] += 1
-          emit_error_label_event do
+          if emit_error_label_event?
             @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{reason}"))
           end
           next
@@ -156,7 +153,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
             raise OpenSearchRequestAbortError, "Rejected OpenSearch due to #{type}"
           end
           if unrecoverable_record_error?(type)
-            emit_error_label_event do
+            if emit_error_label_event?
               @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
             end
             next
@@ -167,7 +164,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
           # When we don't have a type field, something changed in the API
           # expected return values.
           stats[:errors_bad_resp] += 1
-          emit_error_label_event do
+          if emit_error_label_event?
             @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - No error type provided in the response"))
           end
           next
