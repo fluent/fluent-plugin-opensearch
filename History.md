@@ -2,6 +2,10 @@
 
 ### [Unreleased]
 
+### 1.0.5
+ -  Use if clause to detect requirements for emitting error label events (#57)
+ - opensearch_data_stream: Align lowercases for data_stream and its template names (#50)
+
 ### 1.0.4
  - Automatically create data streams (#44)
 
