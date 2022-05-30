@@ -2,6 +2,9 @@
 
 ### [Unreleased]
 
+### 1.0.6
+ - out\_opensearch: Handle suppress\_type\_name operation correctly (#61)
+
 ### 1.0.5
  -  Use if clause to detect requirements for emitting error label events (#57)
  - opensearch_data_stream: Align lowercases for data_stream and its template names (#50)
