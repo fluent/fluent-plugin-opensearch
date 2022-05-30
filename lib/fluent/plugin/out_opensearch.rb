@@ -989,7 +989,7 @@ module Fluent::Plugin
         end
       end
 
-      if @suppress_type_name
+      if @suppress_type_name || @last_seen_major_version >= 2
         target_type = nil
       else
         # OpenSearch only supports "_doc".
@@ -998,7 +998,7 @@ module Fluent::Plugin
 
       meta.clear
       meta["_index".freeze] = target_index
-      meta["_type".freeze] = target_type
+      meta["_type".freeze] = target_type unless target_type.nil?
       meta["_alias".freeze] = target_index_alias
 
       if @pipeline

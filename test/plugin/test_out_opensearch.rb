@@ -2320,8 +2320,9 @@ class OpenSearchOutputTest < Test::Unit::TestCase
   end
 
   data(
-    "OpenSearch default"=> {"os_version" => 1, "_type" => "_doc", "suppress_type" => false},
-    "Suppressed type" => {"os_version" => 1, "_type" => nil, "suppress_type" => true},
+    "OpenSearch default" => {"os_version" => 1, "_type" => "_doc", "suppress_type" => false},
+    "Suppressed type"    => {"os_version" => 1, "_type" => nil,    "suppress_type" => true},
+    "OpenSearch 2"       => {"os_version" => 2, "_type" => nil,    "suppress_type" => true},
   )
   def test_writes_to_speficied_type(data)
     driver('', data["os_version"]).configure("suppress_type_name #{data['suppress_type']}")
@@ -2330,7 +2331,12 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     driver.run(default_tag: 'test') do
       driver.feed(sample_record)
     end
-    assert_equal(data['_type'], index_cmds.first['index']['_type'])
+    if data["suppress_type"] || data["os_version"] >= 2
+      assert_false(index_cmds.first['index'].has_key?("_type"))
+    else
+      assert_true(index_cmds.first['index'].has_key?("_type"))
+      assert_equal(data['_type'], index_cmds.first['index']['_type'])
+    end
   end
 
   def test_writes_to_speficied_host
