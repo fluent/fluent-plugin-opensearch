@@ -1564,6 +1564,19 @@ In this case, the endpoint configuration looks like:
 </endpoint>
 ```
 
+### Expiring AWS credentials
+
+If you want to expire AWS credentials in certain interval, you should specify `refresh_credentials_interval` parameter under `endpoint` section:
+
+```aconf
+<endpoint>
+  url https://CLUSTER_ENDPOINT_URL
+  region eu-west-1
+  # ...
+  refresh_credentials_interval 3h # default is 5h (five hours).
+</endpoint>
+```
+
 ## Troubleshooting
 
 See [Troubleshooting document](README.Troubleshooting.md)
