@@ -2,6 +2,9 @@
 
 ### [Unreleased]
 
+### 1.0.7
+ - Expire AWS credentials with a certain interval (#52)
+
 ### 1.0.6
  - out\_opensearch: Handle suppress\_type\_name operation correctly (#61)
 
