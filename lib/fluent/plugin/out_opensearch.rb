@@ -194,6 +194,7 @@ module Fluent::Plugin
       config_param :assume_role_session_name, :string, :default => "fluentd"
       config_param :assume_role_web_identity_token_file, :string, :default => nil
       config_param :sts_credentials_region, :string, :default => nil
+      config_param :refresh_credentials_interval, :time, :default => "5h"
     end
 
     config_section :buffer do
@@ -334,6 +335,22 @@ module Fluent::Plugin
           @truncate_mutex.synchronize {
             @template_names.clear
           }
+        end
+      end
+      # If AWS credentials is set, consider to expire credentials information forcibly before expired.
+      @credential_mutex = Mutex.new
+      if @endpoint
+        @_aws_credentials = aws_credentials(@endpoint)
+
+        if @endpoint.refresh_credentials_interval
+          timer_execute(:out_opensearch_expire_credentials, @endpoint.refresh_credentials_interval) do
+            log.debug('Recreate the AWS credentials')
+
+            @credential_mutex.synchronize do
+              @_os = nil
+              @_aws_credentials = aws_credentials(@endpoint)
+            end
+          end
         end
       end
 
@@ -607,7 +624,7 @@ module Fluent::Plugin
                              :aws_sigv4,
                              service: 'es',
                              region: @endpoint.region,
-                             credentials: aws_credentials(@endpoint),
+                             credentials: @_aws_credentials,
                            )
 
                            f.adapter @http_backend, @backend_options
