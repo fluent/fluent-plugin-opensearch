@@ -2,6 +2,9 @@
 
 ### [Unreleased]
 
+### 1.0.8
+ - Use faraday 1.x explicitly (#71)
+
 ### 1.0.7
  - Expire AWS credentials with a certain interval (#52)
 
