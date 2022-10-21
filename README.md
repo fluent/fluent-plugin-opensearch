@@ -1577,6 +1577,19 @@ If you want to expire AWS credentials in certain interval, you should specify `r
 </endpoint>
 ```
 
+### Use OpenSearch Serverless
+
+If you want to use Serverless version of OpenSearch service, you have to specify `aoss` in `aws_service_name` under `endpoint` section:
+
+```aconf
+<endpoint>
+  url https://CLUSTER_ENDPOINT_URL
+  region us-east-2
+  # ...
+  aws_service_name aoss # default is es that is for AWS OpenSearch Service not Serverless.
+</endpoint>
+```
+
 ## Troubleshooting
 
 See [Troubleshooting document](README.Troubleshooting.md)

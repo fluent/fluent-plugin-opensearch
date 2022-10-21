@@ -195,6 +195,7 @@ module Fluent::Plugin
       config_param :assume_role_web_identity_token_file, :string, :default => nil
       config_param :sts_credentials_region, :string, :default => nil
       config_param :refresh_credentials_interval, :time, :default => "5h"
+      config_param :aws_service_name, :enum, list: [:es, :aoss], :default => :es
     end
 
     config_section :buffer do
@@ -622,7 +623,7 @@ module Fluent::Plugin
                          lambda do |f|
                            f.request(
                              :aws_sigv4,
-                             service: 'es',
+                             service: @endpoint.aws_service_name.to_s,
                              region: @endpoint.region,
                              credentials: @_aws_credentials,
                            )
