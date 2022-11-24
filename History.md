@@ -2,6 +2,10 @@
 
 ### [Unreleased]
 
+### 1.0.9
+ - Adjust GitHub workflows (#89)
+ - out\_opensearch: Provide service_name choices for handling serverless (#88)
+
 ### 1.0.8
  - Use faraday 1.x explicitly (#71)
 
