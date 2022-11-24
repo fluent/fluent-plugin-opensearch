@@ -315,6 +315,39 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal "fluentd", instance.endpoint.assume_role_session_name
     assert_nil instance.endpoint.assume_role_web_identity_token_file
     assert_nil instance.endpoint.sts_credentials_region
+    assert_equal :es, instance.endpoint.aws_service_name
+  end
+
+  data("OpenSearch Service" => [:es, 'es'],
+       "OpenSearch Serverless" => [:aoss, 'aoss'])
+  test 'configure endpoint section w/ aws_service_name' do |data|
+    expected, conf = data
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+      }, [
+        Fluent::Config::Element.new('endpoint', '', {
+                                      'url' => "https://search-opensearch.aws.example.com/",
+                                      'region' => "local",
+                                      'access_key_id' => 'YOUR_AWESOME_KEY',
+                                      'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                      'aws_service_name' => conf,
+                                    }, []),
+        Fluent::Config::Element.new('buffer', 'tag', {}, [])
+
+      ])
+    instance = driver(config).instance
+
+    assert_equal "https://search-opensearch.aws.example.com", instance.endpoint.url
+    assert_equal "local", instance.endpoint.region
+    assert_equal "YOUR_AWESOME_KEY", instance.endpoint.access_key_id
+    assert_equal "YOUR_AWESOME_SECRET", instance.endpoint.secret_access_key
+    assert_nil instance.endpoint.assume_role_arn
+    assert_nil instance.endpoint.ecs_container_credentials_relative_uri
+    assert_equal "fluentd", instance.endpoint.assume_role_session_name
+    assert_nil instance.endpoint.assume_role_web_identity_token_file
+    assert_nil instance.endpoint.sts_credentials_region
+    assert_equal expected, instance.endpoint.aws_service_name
   end
 
   test 'configure compression' do
