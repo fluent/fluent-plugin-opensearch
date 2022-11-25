@@ -68,7 +68,7 @@ hosts host1:port1,host2:port2,host3:port3
 
 You can specify multiple OpenSearch hosts with separator ",".
 
-If you specify multiple hosts, this plugin will load balance updates to OpenSearch. This is an [opensearch-ruby](https://github.com/opensearch/opensearch-ruby) feature, the default strategy is round-robin.
+If you specify multiple hosts, this plugin will load balance updates to OpenSearch. This is an [opensearch-ruby](https://github.com/opensearch-project/opensearch-ruby) feature, the default strategy is round-robin.
 
 If you specify `hosts` option, `host` and `port` options are ignored.
 
