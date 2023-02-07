@@ -2,6 +2,11 @@
 
 ### [Unreleased]
 
+### 1.0.10
+ - Replace File.exists? with File.exist? to work with Ruby 3.2 (#93)
+ - Add a constraint for dependent gem to stay on Faraday v1 (#90)
+ - README.md: Fix a link to opensearch-ruby (#85)
+
 ### 1.0.9
  - Adjust GitHub workflows (#89)
  - out\_opensearch: Provide service_name choices for handling serverless (#88)
