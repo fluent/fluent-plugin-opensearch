@@ -2,6 +2,11 @@
 
 ### [Unreleased]
 
+### 1.1.0
+ - Unpin `faraday` from v1, upgrade to v2.
+   Note that if you can't migrate other plugins from `faraday` v1 yet, need to keep
+   fluent-plugin-opensearch v1.0.10.
+
 ### 1.0.10
  - Replace File.exists? with File.exist? to work with Ruby 3.2 (#93)
  - Add a constraint for dependent gem to stay on Faraday v1 (#90)

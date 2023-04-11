@@ -111,6 +111,8 @@ Send your logs to OpenSearch (and search them with OpenSearch Dashboards maybe?)
 |:----------------------------:|:-----------:|:------:|
 | >= 1.0.0                     | >= v1.x  | >= 2.4 |
 
+NOTE: Since fluent-plugin-opensearch 1.1.0, it requires faraday 2.0 or later.
+
 NOTE: This documentation is for fluent-plugin-opensearch 1.x or later.
 
 ## Installation
