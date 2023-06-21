@@ -300,6 +300,7 @@ class OpenSearchOutputTest < Test::Unit::TestCase
                                       'region' => "local",
                                       'access_key_id' => 'YOUR_AWESOME_KEY',
                                       'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                      'refresh_credentials_interval' => '10h'
                                     }, []),
         Fluent::Config::Element.new('buffer', 'tag', {}, [])
 
@@ -316,6 +317,8 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_nil instance.endpoint.assume_role_web_identity_token_file
     assert_nil instance.endpoint.sts_credentials_region
     assert_equal :es, instance.endpoint.aws_service_name
+    assert_equal 36000, instance.endpoint.refresh_credentials_interval
+    assert_equal 36000, instance.duration_seconds
   end
 
   data("OpenSearch Service" => [:es, 'es'],
