@@ -2,6 +2,9 @@
 
 ### [Unreleased]
 
+### 1.1.1
+ -  Pass a value of refresh\_credentials\_interval as duration\_seconds (#78)
+
 ### 1.1.0
  - Unpin `faraday` from v1, upgrade to v2.
    Note that if you can't migrate other plugins from `faraday` v1 yet, need to keep
