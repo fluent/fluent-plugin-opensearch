@@ -70,6 +70,7 @@ module Fluent::Plugin
     def create_index_template(datastream_name, template_name, host = nil)
       # Create index template from file
       if @template_file
+        return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
         template_installation_actual(template_name, @customize_template, @application_name, datastream_name, host)
       else # Create default index template
         return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
@@ -159,13 +160,10 @@ module Fluent::Plugin
                end
         data_stream_name = extract_placeholders(@data_stream_name, chunk).downcase
         data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk).downcase
-        unless @data_stream_names.include?(data_stream_name)
-          begin
-            create_index_template(data_stream_name, data_stream_template_name, host)
-            @data_stream_names << data_stream_name
-          rescue => e
-            raise Fluent::ConfigError, "Failed to create data stream: <#{data_stream_name}> #{e.message}"
-          end
+        begin
+          create_index_template(data_stream_name, data_stream_template_name, host)
+        rescue => e
+          raise Fluent::ConfigError, "Failed to create data stream: <#{data_stream_name}> #{e.message}"
         end
       end
 
