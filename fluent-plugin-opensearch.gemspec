@@ -3,7 +3,7 @@ $:.push File.expand_path('../lib', __FILE__)
 
 Gem::Specification.new do |s|
   s.name          = 'fluent-plugin-opensearch'
-  s.version       = '1.1.1'
+  s.version       = '1.1.2'
   s.authors       = ['Hiroshi Hatake']
   s.email         = ['cosmo0920.wp@gmail.com']
   s.description   = %q{Opensearch output plugin for Fluent event collector}

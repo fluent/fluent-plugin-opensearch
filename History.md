@@ -2,6 +2,10 @@
 
 ### [Unreleased]
 
+### 1.1.2
+ - Check OS cluster for data streams and templates for index template creation (#106)
+ - out\_opensearch\_data\_stream: Don't connect to opensearch on dry-run (#105)
+
 ### 1.1.1
  -  Pass a value of refresh\_credentials\_interval as duration\_seconds (#78)
 
