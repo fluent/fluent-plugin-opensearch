@@ -1606,7 +1606,7 @@ There are usually a few feature requests, tagged [Easy](https://github.com/fluen
 
 Pull Requests are welcomed.
 
-Becore send a pull request or report an issue, please read [the contribution guideline](CONTRIBUTING.md).
+Before sending a pull request or reporting an issue, please read [the contribution guideline](CONTRIBUTING.md).
 
 ## Running tests
 

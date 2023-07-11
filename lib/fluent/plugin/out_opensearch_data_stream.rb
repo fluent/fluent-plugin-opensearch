@@ -187,6 +187,12 @@ module Fluent::Plugin
             dt = Time.at(time).to_datetime
           end
           record.merge!({"@timestamp" => dt.iso8601(@time_precision)})
+          if @include_tag_key
+            record[@tag_key] = tag
+          end
+          if @remove_keys
+            @remove_keys.each { |key| record.delete(key) }
+          end
           bulk_message = append_record_to_messages(CREATE_OP, {}, headers, record, bulk_message)
         rescue => e
           emit_error_label_event do
