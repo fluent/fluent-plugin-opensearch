@@ -697,7 +697,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     driver(conf).run(default_tag: 'test') do
       driver.feed(record)
     end
-    assert(index_cmds[1].has_key? 'test_tag')
+    assert(!index_cmds[1].has_key?('test_tag'))
   end
 
   def test_record_without_include_tag_key
@@ -718,7 +718,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     driver(conf).run(default_tag: 'test') do
       driver.feed(record)
     end
-    assert_not(index_cmds[1].has_key? 'test')
+    assert(!index_cmds[1].has_key?('test'))
   end
 
 end
