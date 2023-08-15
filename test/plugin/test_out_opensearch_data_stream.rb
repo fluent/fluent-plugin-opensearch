@@ -721,4 +721,26 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('test'))
   end
 
+  def test_record_with_remove_keys
+    stub_default
+    stub_bulk_feed
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'remove_keys' => 'remove_me'
+    })
+    record = {
+      'message' => 'Sample Record',
+      'remove_me' => 'foo'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert(!index_cmds[1].has_key?('remove_me'))
+  end
+
 end
