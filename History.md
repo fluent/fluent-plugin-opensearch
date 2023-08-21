@@ -2,6 +2,10 @@
 
 ### [Unreleased]
 
+### 1.1.4
+ - test: remove minitest to correct misjudge of the framework by flexmock (#114)
+ - Add logic to write method of out_opensearch_data_stream (#109)
+
 ### 1.1.3
  - Revert the behavior of passing duration second (#108)
 
