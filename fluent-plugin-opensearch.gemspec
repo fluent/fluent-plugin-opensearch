@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
   s.required_ruby_version = Gem::Requirement.new(">= 2.3".freeze)
 
   s.add_runtime_dependency 'fluentd', '>= 0.14.22'
-  s.add_runtime_dependency 'opensearch-ruby'
+  s.add_runtime_dependency 'opensearch-ruby', '>= 3.0.1'
   s.add_runtime_dependency "aws-sdk-core", "~> 3"
   s.add_runtime_dependency 'excon', '>= 0'
   s.add_runtime_dependency 'faraday', '>= 2.0.0'
