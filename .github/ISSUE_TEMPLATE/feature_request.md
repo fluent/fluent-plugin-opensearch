@@ -5,7 +5,7 @@ about: Suggest an idea for this project
 ---
 
 (check apply)
-- [ ] read [the contribution guideline](https://github.com/uken/fluent-plugin-elasticsearch/blob/master/CONTRIBUTING.md)
+- [ ] read [the contribution guideline](https://github.com/fluent/fluent-plugin-opensearch/blob/master/CONTRIBUTING.md)
 
 **Is your feature request related to a problem? Please describe.**
 
