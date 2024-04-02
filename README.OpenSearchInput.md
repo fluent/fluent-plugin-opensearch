@@ -24,6 +24,9 @@
   + [docinfo_fields](#docinfo_fields)
   + [docinfo_target](#docinfo_target)
   + [docinfo](#docinfo)
+  + [infinite_check_connection](#infinite_check_connection)
+  + [test_connection](#test_connection)
+
 * [Advanced Usage](#advanced-usage)
 
 ## Usage
@@ -272,6 +275,22 @@ This parameter specifies whether docinfo information including or not. The defau
 
 ```
 docinfo false
+```
+
+### infinite_check_connection
+
+The parameter infinite checking of connection availability with elasticsearch or opensearch hosts, every 5 seconds. The default value is `true`.
+
+```
+infinite_check_connection true
+```
+
+### test_connection
+
+Retrieves a list of all hosts from the configuration. Checks the availability of each individual service on each host and uses the available servers for communication. The default value is `true`.
+
+```
+test_connection true
 ```
 
 ## Advanced Usage

@@ -80,6 +80,8 @@ module Fluent::Plugin
     config_param :docinfo_fields, :array, :default => ['_index', '_type', '_id']
     config_param :docinfo_target, :string, :default => METADATA
     config_param :docinfo, :bool, :default => false
+    config_param :infinite_check_connection, :bool, :default => true
+    config_param :test_connection, :bool, :default => true
 
     include Fluent::Plugin::OpenSearchConstants
 
@@ -172,14 +174,52 @@ module Fluent::Plugin
         end.compact
       else
         [{host: @host, port: @port, scheme: @scheme.to_s}]
-      end.each do |host|
+      end
+      hosts.each do |host|
         host.merge!(user: @user, password: @password) if !host[:user] && @user
         host.merge!(path: @path) if !host[:path] && @path
       end
-
       {
-        hosts: hosts
+        hosts: get_reachable_hosts(hosts)
       }
+    end
+
+    def get_reachable_hosts(hosts=nil)
+
+      reachable_hosts = []
+      attempt = 0
+      loop do
+        hosts.each do |host|
+          begin
+            if @test_connection == true
+              check_host = OpenSearch::Client.new(
+                host: ["#{host[:scheme]}://#{host[:host]}:#{host[:port]}"],
+                user: host[:user],
+                password: host[:password],
+                reload_connections: true,
+                resurrect_after: @resurrect_after,
+                reload_on_failure: @reload_on_failure,
+                transport_options: { ssl: { verify: @ssl_verify, ca_file: @ca_file, version: @ssl_version } }
+              )
+              response = check_host.ping  #https://github.com/opensearch-project/opensearch-ruby/blob/136e1c975fc91b8cb80d7d1134e32c6dbefdb3eb/lib/opensearch/api/actions/ping.rb#L33
+              if response == true
+                reachable_hosts << host
+              else
+                log.warn "Connection to #{host[:scheme]}://#{host[:host]}:#{host[:port]} failed with status code #{response.status}"
+              end
+            else
+              reachable_hosts << host
+            end
+          rescue => e
+            log.warn "Failed to connect to #{host[:scheme]}://#{host[:host]}:#{host[:port]}"
+          end
+        end
+        break unless reachable_hosts.empty?
+        log.info "Attempt ##{attempt += 1} to get reachable hosts"
+        log.info "No reachable hosts found. Retrying in #{@request_timeout} seconds..."
+        sleep(@request_timeout)
+      end
+      reachable_hosts
     end
 
     def emit_error_label_event(&block)
