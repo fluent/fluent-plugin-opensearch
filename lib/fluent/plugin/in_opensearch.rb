@@ -81,7 +81,6 @@ module Fluent::Plugin
     config_param :docinfo_target, :string, :default => METADATA
     config_param :docinfo, :bool, :default => false
     config_param :infinite_check_connection, :bool, :default => true
-    config_param :test_connection, :bool, :default => true
 
     include Fluent::Plugin::OpenSearchConstants
 
@@ -191,7 +190,7 @@ module Fluent::Plugin
       loop do
         hosts.each do |host|
           begin
-            if @test_connection == true
+            if @infinite_check_connection == true
               check_host = OpenSearch::Client.new(
                 host: ["#{host[:scheme]}://#{host[:host]}:#{host[:port]}"],
                 user: host[:user],

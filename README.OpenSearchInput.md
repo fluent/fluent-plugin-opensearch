@@ -25,7 +25,6 @@
   + [docinfo_target](#docinfo_target)
   + [docinfo](#docinfo)
   + [infinite_check_connection](#infinite_check_connection)
-  + [test_connection](#test_connection)
 
 * [Advanced Usage](#advanced-usage)
 
@@ -283,14 +282,6 @@ The parameter infinite checking of connection availability with elasticsearch or
 
 ```
 infinite_check_connection true
-```
-
-### test_connection
-
-Retrieves a list of all hosts from the configuration. Checks the availability of each individual service on each host and uses the available servers for communication. The default value is `true`.
-
-```
-test_connection true
 ```
 
 ## Advanced Usage
