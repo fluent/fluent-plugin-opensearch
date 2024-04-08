@@ -360,7 +360,14 @@ module Fluent::Plugin
       end
 
       router.emit_stream(@tag, es)
+      clear_scroll(scroll_id)
+    end
+
+    def clear_scroll(scroll_id)
       client.clear_scroll(scroll_id: scroll_id) if scroll_id
+    rescue => e
+      # ignore & log any clear_scroll errors
+      log.warn("Ignoring clear_scroll exception", message: e.message, exception: e.class)
     end
 
     def process_scroll_request(scroll_id)
