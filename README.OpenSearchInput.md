@@ -24,6 +24,7 @@
   + [docinfo_fields](#docinfo_fields)
   + [docinfo_target](#docinfo_target)
   + [docinfo](#docinfo)
+  + [infinite_check_connection](#infinite_check_connection)
 * [Advanced Usage](#advanced-usage)
 
 ## Usage
@@ -273,6 +274,15 @@ This parameter specifies whether docinfo information including or not. The defau
 ```
 docinfo false
 ```
+
+### infinite_check_connection
+
+The parameter infinite checking on connection availability with Elasticsearch or opensearch hosts, every  request_timeout (default 5) seconds. The default value is `true,`. But if value is `false` then checking of connection will be only 3 times
+
+```
+infinite_check_connection true
+```
+
 
 ## Advanced Usage
 
