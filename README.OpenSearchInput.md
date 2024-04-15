@@ -277,7 +277,7 @@ docinfo false
 
 ### infinite_check_connection
 
-The parameter infinite checking on connection availability with Elasticsearch or opensearch hosts, every  request_timeout (default 5) seconds. The default value is `true,`. But if value is `false` then checking of connection will be only 3 times
+The parameter infinite checking on connection availability with Elasticsearch or opensearch hosts, every  request_timeout (default 5) seconds. The default value is `true`.
 
 ```
 infinite_check_connection true
