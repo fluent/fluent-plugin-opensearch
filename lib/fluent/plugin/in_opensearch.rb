@@ -349,8 +349,10 @@ module Fluent::Plugin
         log.warn("failed to connect or search.", retry_times: @retry.steps, next_retry_time: @retry.next_time.round, error: error.message)
         sleep(@retry.next_time - Time.now)
       else
-        log.debug("retry succeeded.") unless @retry.nil?
-        @retry = nil unless @retry.nil?
+        unless @retry.nil?
+          log.debug("retry succeeded.")
+          @retry = nil
+        end
       end
     end
 
