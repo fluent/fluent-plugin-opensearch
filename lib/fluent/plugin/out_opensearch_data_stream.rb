@@ -201,6 +201,8 @@ module Fluent::Plugin
         end
       end
 
+      return if bulk_message.to_s.empty?
+
       params = {
         index: data_stream_name,
         body: bulk_message
