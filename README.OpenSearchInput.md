@@ -24,6 +24,16 @@
   + [docinfo_fields](#docinfo_fields)
   + [docinfo_target](#docinfo_target)
   + [docinfo](#docinfo)
+  + [check_connection](#check_connection)
+  + [retry_forever](#retry_forever)
+  + [retry_timeout](#retry_timeout)
+  + [retry_max_times](#retry_max_times)
+  + [retry_type](#retry_type)
+  + [retry_wait](#retry_wait)
+  + [retry_exponential_backoff_base](#retry_exponential_backoff_base)
+  + [retry_max_interval](#retry_max_interval)
+  + [retry_randomize](#retry_randomize)
+
 * [Advanced Usage](#advanced-usage)
 
 ## Usage
@@ -272,6 +282,88 @@ This parameter specifies whether docinfo information including or not. The defau
 
 ```
 docinfo false
+```
+
+### check_connection
+
+The parameter for checking on connection availability with Elasticsearch or Opensearch hosts. The default value is `true`.
+
+```
+check_connection true
+```
+### retry_forever
+
+The parameter If true, plugin will ignore retry_timeout and retry_max_times options and retry forever. The default value is `true`.
+
+```
+retry_forever true
+```
+
+### retry_timeout
+
+The parameter maximum time (seconds) to retry again the failed try, until the plugin discards the retry.
+If the next retry is going to exceed this time limit, the last retry will be made at exactly this time limit..
+The default value is `72h`.
+72hours == 17 times with exponential backoff (not to change default behavior)
+
+```
+retry_timeout 72 * 60 * 60
+```
+
+### retry_max_times
+
+The parameter maximum number of times to retry the failed try. The default value is `5`
+
+```
+retry_max_times 5
+```
+
+### retry_type
+
+The parameter needs for how long need to wait (time in seconds) to retry again:
+`exponential_backoff`: wait in seconds will become large exponentially per failure,
+`periodic`: plugin will retry periodically with fixed intervals (configured via retry_wait). The default value is `:exponential_backoff`
+Periodic -> fixed :retry_wait
+Exponential backoff: k is number of retry times
+c: constant factor, @retry_wait
+b: base factor, @retry_exponential_backoff_base
+k: times
+total retry time: c + c * b^1 + (...) + c*b^k = c*b^(k+1) - 1
+
+```
+retry_type exponential_backoff
+```
+
+### retry_wait
+
+The parameter needs for wait in seconds before the next retry to again or constant factor of exponential backoff. The default value is  `5`
+
+```
+retry_wait 5
+```
+
+### retry_exponential_backoff_base
+
+The parameter The base number of exponential backoff for retries. The default value is  `2`
+
+```
+retry_exponential_backoff_base 2
+```
+
+### retry_max_interval
+
+The parameter maximum interval (seconds) for exponential backoff between retries while failing. The default value is  `nil`
+
+```
+retry_max_interval nil
+```
+
+### retry_randomize
+
+The parameter If true, the plugin will retry after randomized interval not to do burst retries. The default value is  `false`
+
+```
+retry_randomize false
 ```
 
 ## Advanced Usage

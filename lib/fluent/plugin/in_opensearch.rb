@@ -29,6 +29,7 @@ require 'opensearch'
 require 'faraday/excon'
 require 'fluent/log-ext'
 require 'fluent/plugin/input'
+require 'fluent/plugin_helper'
 require_relative 'opensearch_constants'
 
 module Fluent::Plugin
@@ -39,7 +40,7 @@ module Fluent::Plugin
     DEFAULT_STORAGE_TYPE = 'local'
     METADATA = "@metadata".freeze
 
-    helpers :timer, :thread
+    helpers :timer, :thread, :retry_state
 
     Fluent::Plugin.register_input('opensearch', self)
 
@@ -80,6 +81,23 @@ module Fluent::Plugin
     config_param :docinfo_fields, :array, :default => ['_index', '_type', '_id']
     config_param :docinfo_target, :string, :default => METADATA
     config_param :docinfo, :bool, :default => false
+    config_param :check_connection, :bool, :default => true
+    config_param :retry_forever, :bool, default: true, desc: 'If true, plugin will ignore retry_timeout and retry_max_times options and retry forever.'
+    config_param :retry_timeout, :time, default: 72 * 60 * 60, desc: 'The maximum seconds to retry'
+    # 72hours == 17 times with exponential backoff (not to change default behavior)
+    config_param :retry_max_times, :integer, default: 5, desc: 'The maximum number of times to retry'
+    # exponential backoff sequence will be initialized at the time of this threshold
+    config_param :retry_type, :enum, list: [:exponential_backoff, :periodic], default: :exponential_backoff
+    ### Periodic -> fixed :retry_wait
+    ### Exponential backoff: k is number of retry times
+    # c: constant factor, @retry_wait
+    # b: base factor, @retry_exponential_backoff_base
+    # k: times
+    # total retry time: c + c * b^1 + (...) + c*b^k = c*b^(k+1) - 1
+    config_param :retry_wait, :time, default: 5, desc: 'Seconds to wait before next retry , or constant factor of exponential backoff.'
+    config_param :retry_exponential_backoff_base, :float, default: 2, desc: 'The base number of exponential backoff for retries.'
+    config_param :retry_max_interval, :time, default: nil, desc: 'The maximum interval seconds for exponential backoff between retries while failing.'
+    config_param :retry_randomize, :bool, default: false, desc: 'If true, output plugin will retry after randomized interval not to do burst retries.'
 
     include Fluent::Plugin::OpenSearchConstants
 
@@ -92,6 +110,7 @@ module Fluent::Plugin
 
       @timestamp_parser = create_time_parser
       @backend_options = backend_options
+      @retry = nil
 
       raise Fluent::ConfigError, "`password` must be present if `user` is present" if @user && @password.nil?
 
@@ -138,6 +157,15 @@ module Fluent::Plugin
       raise Fluent::ConfigError, "You must install #{@http_backend} gem. Exception: #{ex}"
     end
 
+    def retry_state(randomize)
+      retry_state_create(
+        :input_retries, @retry_type, @retry_wait, @retry_timeout,
+        forever: @retry_forever, max_steps: @retry_max_times,
+        max_interval: @retry_max_interval, backoff_base: @retry_exponential_backoff_base,
+        randomize: randomize
+      )
+    end
+
     def get_escaped_userinfo(host_str)
       if m = host_str.match(/(?<scheme>.*)%{(?<user>.*)}:%{(?<password>.*)}(?<path>@.*)/)
         m["scheme"] +
@@ -176,10 +204,27 @@ module Fluent::Plugin
         host.merge!(user: @user, password: @password) if !host[:user] && @user
         host.merge!(path: @path) if !host[:path] && @path
       end
-
+      live_hosts = @check_connection ? hosts.select { |host| reachable_host?(host) } : hosts
       {
-        hosts: hosts
+        hosts: live_hosts
       }
+    end
+
+    def reachable_host?(host)
+      client = OpenSearch::Client.new(
+        host: ["#{host[:scheme]}://#{host[:host]}:#{host[:port]}"],
+        user: host[:user],
+        password: host[:password],
+        reload_connections: @reload_connections,
+        request_timeout: @request_timeout,
+        resurrect_after: @resurrect_after,
+        reload_on_failure: @reload_on_failure,
+        transport_options: { ssl: { verify: @ssl_verify, ca_file: @ca_file, version: @ssl_version } }
+      )
+      client.ping
+    rescue => e
+      log.warn "Failed to connect to #{host[:scheme]}://#{host[:host]}:#{host[:port]}: #{e.message}"
+      false
     end
 
     def emit_error_label_event(&block)
@@ -292,6 +337,25 @@ module Fluent::Plugin
       return true
     end
 
+    def update_retry_state(error=nil)
+      if error
+        unless @retry
+          @retry = retry_state(@retry_randomize)
+        end
+        @retry.step
+        #Raise error if the retry limit has been reached
+        raise "Hit limit for retries. retry_times: #{@retry.steps}, error: #{error.message}" if @retry.limit?
+        #Retry if the limit hasn't been reached
+        log.warn("failed to connect or search.", retry_times: @retry.steps, next_retry_time: @retry.next_time.round, error: error.message)
+        sleep(@retry.next_time - Time.now)
+      else
+        unless @retry.nil?
+          log.debug("retry succeeded.")
+          @retry = nil
+        end
+      end
+    end
+
     def run
       return run_slice if @num_slices <= 1
 
@@ -302,6 +366,9 @@ module Fluent::Plugin
           run_slice(slice_id)
         end
       end
+    rescue Faraday::ConnectionFailed, OpenSearch::Transport::Transport::Error => error
+      update_retry_state(error)
+      retry
     end
 
     def run_slice(slice_id=nil)
@@ -321,7 +388,15 @@ module Fluent::Plugin
       end
 
       router.emit_stream(@tag, es)
+      clear_scroll(scroll_id)
+      update_retry_state
+    end
+
+    def clear_scroll(scroll_id)
       client.clear_scroll(scroll_id: scroll_id) if scroll_id
+    rescue => e
+      # ignore & log any clear_scroll errors
+      log.warn("Ignoring clear_scroll exception", message: e.message, exception: e.class)
     end
 
     def process_scroll_request(scroll_id)

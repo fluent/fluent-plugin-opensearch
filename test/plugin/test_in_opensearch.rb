@@ -39,6 +39,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
   CONFIG = %[
     tag raw.opensearch
     interval 2
+    check_connection false
   ]
 
   def setup
@@ -190,6 +191,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
       user     john
       password doe
       tag      raw.opensearch
+      check_connection false
     }
     instance = driver(config).instance
 
@@ -228,6 +230,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
       user     john
       password doe
       tag      raw.opensearch
+      check_connection false
     }
     instance = driver(config).instance
 
@@ -249,6 +252,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
       user     %{j+hn}
       password %{d@e}
       tag      raw.opensearch
+      check_connection false
     }
     instance = driver(config).instance
 
@@ -271,6 +275,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
       path     /es/
       port     123
       tag      raw.opensearch
+      check_connection false
     }
     instance = driver(config).instance
 
@@ -295,6 +300,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
       user     default_user
       password default_password
       tag      raw.opensearch
+      check_connection false
     }
     instance = driver(config).instance
 
@@ -323,6 +329,7 @@ class OpenSearchInputTest < Test::Unit::TestCase
       user     default_user
       password default_password
       tag      raw.opensearch
+      check_connection false
     }
     instance = driver(config).instance
 
