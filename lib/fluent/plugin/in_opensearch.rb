@@ -344,7 +344,7 @@ module Fluent::Plugin
         end
         @retry.step
         if error.message.include?('EOFError (EOFError)')
-          log.error("Restart plugin #{error.message}")
+          log.error("Restart plugin because hit error #{error.message}")
           exit(1)
         end
         #Raise error if the retry limit has been reached
