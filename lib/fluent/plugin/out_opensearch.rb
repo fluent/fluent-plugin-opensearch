@@ -350,7 +350,11 @@ module Fluent::Plugin
 
             @credential_mutex.synchronize do
               @_os = nil
-              @_aws_credentials = aws_credentials(@endpoint)
+              begin
+                @_aws_credentials = aws_credentials(@endpoint)
+              rescue => e
+                log.error("Failed to get new AWS credentials: #{e}")
+              end
             end
           end
         end
