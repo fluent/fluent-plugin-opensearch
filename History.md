@@ -2,6 +2,14 @@
 
 ### [Unreleased]
 
+### 1.2.0
+ - Pin opensearch-ruby dependency to 3.0.1 (#116)
+ - Cleanup documentation and issue template (#119)
+ - `out_opensearch_data_stream`: Early return on empty body (#131)
+ - Improve retry logic and a service availability check (#136)
+ - Prevent AWS credentials refresh from stopping on exception (#142)
+ - ci: Fix bundle installation error on GitHub Action (#143)
+
 ### 1.1.4
  - test: remove minitest to correct misjudge of the framework by flexmock (#114)
  - Add logic to write method of out_opensearch_data_stream (#109)
