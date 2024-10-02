@@ -3977,4 +3977,26 @@ class OpenSearchOutputTest < Test::Unit::TestCase
       end
     }
   end
+
+  def test_no_aws_credentials_refresh_exception
+    # See https://github.com/fluent/fluent-plugin-opensearch/issues/129
+    endpoint_config =
+      Fluent::Config::Element.new('endpoint', '', {
+                                    'url' => "https://search-opensearch.aws.example.com/",
+                                    'region' => "local",
+                                    'access_key_id' => 'YOUR_AWESOME_KEY',
+                                    'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                    'refresh_credentials_interval' => '0',
+                                  }, [])
+    config = Fluent::Config::Element.new('ROOT', '**', { '@type' => 'opensearch' },
+                                         [endpoint_config])
+    # aws_credentials will be called twice in
+    # OpenSearchOutput#configure call, and in the 2nd call was changed not
+    # to emit exception. (instead, logging error) so check the error logs
+    flexmock(Fluent::Plugin::OpenSearchOutput).new_instances.should_receive(:aws_credentials)
+      .and_return(true).and_raise(::RuntimeError.new("No valid AWS credentials found."))
+    d = driver(config)
+    d.run
+    assert { d.logs.any?(/\[error\]: Failed to get new AWS credentials: No valid AWS credentials found.\n/) }
+  end
 end
