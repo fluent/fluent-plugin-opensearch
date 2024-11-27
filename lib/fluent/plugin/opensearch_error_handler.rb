@@ -85,6 +85,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
     chunk.msgpack_each do |time, rawrecord|
       bulk_message = ''
       next unless rawrecord.is_a? Hash
+
       begin
         # we need a deep copy for process_message to alter
         processrecord = Marshal.load(Marshal.dump(rawrecord))
@@ -95,6 +96,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
         stats[:bad_chunk_record] += 1
         next
       end
+
       item = items.shift
       if item.is_a?(Hash) && item.has_key?(@plugin.write_operation)
         write_operation = @plugin.write_operation
@@ -111,6 +113,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
         stats[:errors_bad_resp] += 1
         next
       end
+
       if item[write_operation].has_key?('status')
         status = item[write_operation]['status']
       else
@@ -119,24 +122,29 @@ class Fluent::Plugin::OpenSearchErrorHandler
         stats[:errors_bad_resp] += 1
         next
       end
+
       case
       when [200, 201].include?(status)
         stats[:successes] += 1
       when CREATE_OP == write_operation && 409 == status
         stats[:duplicates] += 1
       when 400 == status
-        stats[:bad_argument] += 1
-        reason = ""
-        log_os_400_reason do
-          if item[write_operation].has_key?('error') && item[write_operation]['error'].has_key?('type')
-            reason = " [error type]: #{item[write_operation]['error']['type']}"
+        error_type   = item.dig(write_operation, 'error', 'type')
+        error_reason = item.dig(write_operation, 'error', 'reason')
+
+        # OS presents shard exhaustion as an exception, but this is 100% retryable...
+        if error_type == 'illegal_argument_exception' && error_reason =~ /would add \[\d+\] total shards, but this cluster/
+          retry_stream.add(time, rawrecord)
+        else
+          stats[:bad_argument] += 1
+          reason = ""
+          log_os_400_reason do
+            reason = " [error type]: #{error_type}" if error_type
+            reason += " [reason]: \'#{error_reason}\'" if error_reason
           end
-          if item[write_operation].has_key?('error') && item[write_operation]['error'].has_key?('reason')
-            reason += " [reason]: \'#{item[write_operation]['error']['reason']}\'"
+          if emit_error_label_event?
+            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
           end
-        end
-        if emit_error_label_event?
-          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
         end
       else
         if item[write_operation]['error'].is_a?(String)
@@ -172,11 +180,13 @@ class Fluent::Plugin::OpenSearchErrorHandler
         stats[type] += 1
       end
     end
+
     @plugin.log.on_debug do
       msg = ["Indexed (op = #{@plugin.write_operation})"]
       stats.each_pair { |key, value| msg << "#{value} #{key}" }
       @plugin.log.debug msg.join(', ')
     end
+
     raise Fluent::Plugin::OpenSearchOutput::RetryStreamError.new(retry_stream) unless retry_stream.empty?
   end
 end
