@@ -2,6 +2,14 @@
 
 ### [Unreleased]
 
+### 1.1.5
+ - Fix bundle installation error on GitHub Action (#143)
+ - Prevent AWS credentials refresh from stopping on exception (#142)
+ - Added a retry logic and a service availability check function for high availability. (#136)
+ - out\_opensearch\_data\_stream: Early return on empty body (#131)
+ - Docs/cleanup issue templates (#119)
+ - pin dependency opensearch-ruby to 3.0.1 (#116)
+
 ### 1.1.4
  - test: remove minitest to correct misjudge of the framework by flexmock (#114)
  - Add logic to write method of out_opensearch_data_stream (#109)
