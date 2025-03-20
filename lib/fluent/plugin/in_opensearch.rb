@@ -370,7 +370,7 @@ module Fluent::Plugin
           run_slice(slice_id)
         end
       end
-    rescue Faraday::ConnectionFailed, OpenSearch::Transport::Transport::Error => error
+    rescue Faraday::ConnectionFailed, Faraday::TimeoutError, OpenSearch::Transport::Transport::Error => error
       update_retry_state(error)
       retry
     end
