@@ -2755,7 +2755,8 @@ class OpenSearchOutputTest < Test::Unit::TestCase
           driver.feed(time.to_i, sample_record.merge({"pipeline_id" => pipeline_id}))
         end
       }
-      assert_equal("could not push logs to OpenSearch cluster ({:host=>\"myhost-1\", :port=>9200, :scheme=>\"http\"}): [503] ", exception.message)
+      connection_spec = {host: "myhost-1", port: 9200, scheme: "http"}
+      assert_equal("could not push logs to OpenSearch cluster (#{connection_spec.inspect}): [503] ", exception.message)
     end
   end
 
