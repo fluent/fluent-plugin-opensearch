@@ -64,7 +64,7 @@ module Fluent::Plugin
     config_param :repeat, :bool, :default => true
     config_param :http_backend, :enum, list: [:excon, :typhoeus], :default => :excon
     config_param :request_timeout, :time, :default => 5
-    config_param :reload_connections, :bool, :default => true
+    config_param :reload_connections, :bool, :default => false
     config_param :reload_on_failure, :bool, :default => false
     config_param :resurrect_after, :time, :default => 60
     config_param :reload_after, :integer, :default => DEFAULT_RELOAD_AFTER
@@ -215,7 +215,7 @@ module Fluent::Plugin
         host: ["#{host[:scheme]}://#{host[:host]}:#{host[:port]}"],
         user: host[:user],
         password: host[:password],
-        reload_connections: @reload_connections,
+        # reload_connections: @reload_connections,
         request_timeout: @request_timeout,
         resurrect_after: @resurrect_after,
         reload_on_failure: @reload_on_failure,
@@ -343,6 +343,10 @@ module Fluent::Plugin
           @retry = retry_state(@retry_randomize)
         end
         @retry.step
+        if error.message.include?('EOFError (EOFError)')
+          log.error("Restart plugin because hit error #{error.message}")
+          exit(1)
+        end
         #Raise error if the retry limit has been reached
         raise "Hit limit for retries. retry_times: #{@retry.steps}, error: #{error.message}" if @retry.limit?
         #Retry if the limit hasn't been reached
@@ -350,7 +354,7 @@ module Fluent::Plugin
         sleep(@retry.next_time - Time.now)
       else
         unless @retry.nil?
-          log.debug("retry succeeded.")
+          log.info("retry succeeded.")
           @retry = nil
         end
       end
@@ -366,7 +370,7 @@ module Fluent::Plugin
           run_slice(slice_id)
         end
       end
-    rescue Faraday::ConnectionFailed, OpenSearch::Transport::Transport::Error => error
+    rescue Faraday::ConnectionFailed, Faraday::TimeoutError, OpenSearch::Transport::Transport::Error => error
       update_retry_state(error)
       retry
     end
