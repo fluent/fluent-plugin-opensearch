@@ -31,7 +31,7 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "faraday_middleware-aws-sigv4", "~> 1.0.1"
 
   s.add_development_dependency 'rake', '>= 0'
-  s.add_development_dependency 'webrick', '~> 1.7.0'
+  s.add_development_dependency 'webrick', '~> 1.9'
   s.add_development_dependency 'webmock', '~> 3.18.1'
   s.add_development_dependency 'test-unit', '~> 3.3.0'
   s.add_development_dependency 'minitest', '~> 5.8'
