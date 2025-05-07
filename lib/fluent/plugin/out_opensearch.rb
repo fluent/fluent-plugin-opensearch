@@ -885,10 +885,10 @@ module Fluent::Plugin
           if split_request?(bulk_message, info)
             bulk_message.each do |info, msgs|
               send_bulk(msgs, tag, chunk, bulk_message_count[info], extracted_values, info) unless msgs.empty?
+            ensure
               msgs.clear
               # Clear bulk_message_count for this info.
               bulk_message_count[info] = 0;
-              next
             end
           end
 
@@ -910,6 +910,7 @@ module Fluent::Plugin
 
       bulk_message.each do |info, msgs|
         send_bulk(msgs, tag, chunk, bulk_message_count[info], extracted_values, info) unless msgs.empty?
+      ensure
         msgs.clear
       end
     end
