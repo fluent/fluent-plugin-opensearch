@@ -195,7 +195,7 @@ module Fluent::Plugin
       config_param :assume_role_session_name, :string, :default => "fluentd"
       config_param :assume_role_web_identity_token_file, :string, :default => nil
       config_param :sts_credentials_region, :string, :default => nil
-      config_param :refresh_credentials_interval, :time, :default => "5h"
+      config_param :refresh_credentials_interval, :time, :default => 18000 # 5 hours
       config_param :aws_service_name, :enum, list: [:es, :aoss], :default => :es
     end
 
