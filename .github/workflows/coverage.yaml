@@ -16,6 +16,6 @@ jobs:
           bundle install
           bundle exec rake
       - name: Coveralls GitHub Action
-        uses: coverallsapp/github-action@v1.1.2
+        uses: coverallsapp/github-action@v2.3.6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
