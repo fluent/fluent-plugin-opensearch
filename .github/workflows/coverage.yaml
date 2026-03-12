@@ -6,14 +6,13 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - name: Set up Ruby 3.0
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
       - name: Build and test with Rake
         run: |
-          gem install bundler
           bundle install
           bundle exec rake
       - name: Coveralls GitHub Action
