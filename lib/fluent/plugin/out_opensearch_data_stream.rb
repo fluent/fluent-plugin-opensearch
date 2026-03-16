@@ -22,7 +22,7 @@ module Fluent::Plugin
       @data_stream_template_name = "#{@data_stream_name}_template" if @data_stream_template_name.nil?
 
       # ref. https://opensearch.org/docs/latest/opensearch/data-streams/
-      unless placeholder?(:data_stream_name_placeholder, @data_stream_name)
+      unless placeholder_substitution_needed?
         validate_data_stream_parameters
       else
         @use_placeholder = true
@@ -67,12 +67,20 @@ module Fluent::Plugin
       end
     end
 
-    def create_index_template(datastream_name, template_name, host = nil)
+    def placeholder_substitution_needed?
+      need_substitution = placeholder?(:data_stream_name_placeholder, @data_stream_name) || 
+        @customize_template&.values&.any? { |value| placeholder?(:customize_template, value.to_s) } || 
+        placeholder?(:data_stream_template_name, @data_stream_template_name)
+      log.debug("Needs substitution: #{need_substitution}")
+      need_substitution
+    end
+
+    def create_index_template(datastream_name, template_name, customize_template = nil, host = nil)
       # Create index template from file
       if !dry_run?
         if @template_file
           return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
-          template_installation_actual(template_name, @customize_template, @application_name, datastream_name, host)
+          template_installation_actual(template_name, customize_template, @application_name, datastream_name, host)
         else # Create default index template
           return if data_stream_exist?(datastream_name, host) or template_exists?(template_name, host)
           body = {
@@ -162,8 +170,11 @@ module Fluent::Plugin
                end
         data_stream_name = extract_placeholders(@data_stream_name, chunk).downcase
         data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk).downcase
+        if @customize_template
+          customize_template = @customize_template.each_with_object({}) { |(key, value), hash| hash[key] = extract_placeholders(value, chunk) }
+        end
         begin
-          create_index_template(data_stream_name, data_stream_template_name, host)
+          create_index_template(data_stream_name, data_stream_template_name, customize_template, host)
         rescue => e
           raise Fluent::ConfigError, "Failed to create data stream: <#{data_stream_name}> #{e.message}"
         end
