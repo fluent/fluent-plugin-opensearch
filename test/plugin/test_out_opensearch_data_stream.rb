@@ -743,4 +743,34 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('remove_me'))
   end
 
+  def test_custom_data_stream_template_create_with_placeholders
+    cwd = File.dirname(__FILE__)
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_name_placeholder' => 'foo',
+      'data_stream_template_name' => '${tag}_template',
+      'template_file' => File.join(cwd, 'datastream_template.json'),
+      'customize_template' => '{"foo*": "${tag}--*"}',
+    })
+
+    stub_default
+    stub_bulk_feed('foo', 'test_templata')
+    stub_nonexistent_template?('test_template')
+
+    stub_request(:put, "http://localhost:9200/_index_template/test_template")
+      .to_return(:status => 200, :body => "", :headers => {})
+
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+
+    assert_requested(
+      :put,
+      "http://localhost:9200/_index_template/test_template",
+      body: {"index_patterns" => ["test--*"], "data_stream" => {}}
+    )
+
+  end
 end
