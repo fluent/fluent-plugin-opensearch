@@ -167,6 +167,8 @@ module Fluent::Plugin
     config_param :verify_os_version_at_startup, :bool, :default => true
     config_param :default_opensearch_version, :integer, :default => DEFAULT_OPENSEARCH_VERSION
     config_param :log_os_400_reason, :bool, :default => false
+    config_param :log_failure_only, :bool, :default => false,
+                 :desc => 'When true, bulk response trace log includes only failed items instead of the full response.'
     config_param :custom_headers, :hash, :default => {}
     config_param :suppress_doc_wrap, :bool, :default => false
     config_param :ignore_exceptions, :array, :default => [], value_type: :string, :desc => "Ignorable exception list"
@@ -1109,7 +1111,15 @@ module Fluent::Plugin
                         end
 
         response = client(info.host, compression).bulk body: prepared_data, index: info.index
-        log.on_trace { log.trace "bulk response: #{response}" }
+        log.on_trace do
+          loggable = if @log_failure_only && response.is_a?(Hash) && response['items'].is_a?(Array)
+                       failed = response['items'].select { |i| i.values.first.key?('error') }
+                       response.merge('items' => failed)
+                     else
+                       response
+                     end
+          log.trace "bulk response: #{loggable}"
+        end
 
         if response['errors']
           error = Fluent::Plugin::OpenSearchErrorHandler.new(self)
