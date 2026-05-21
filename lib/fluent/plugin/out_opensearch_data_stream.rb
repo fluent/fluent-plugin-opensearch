@@ -210,7 +210,8 @@ module Fluent::Plugin
       begin
         response = client(host).bulk(params)
         if response['errors']
-          log.error "Could not bulk insert to Data Stream: #{data_stream_name} #{response}"
+          failed = response['items'].select { |item| item.values.first['status'] >= 300 }
+          log.error "Could not bulk insert to Data Stream: #{data_stream_name}, failed items: #{failed}"
         end
       rescue => e
         raise RecoverableRequestFailure, "could not push logs to OpenSearch cluster (#{data_stream_name}): #{e.message}"
@@ -229,3 +230,4 @@ module Fluent::Plugin
     end
   end
 end
+
