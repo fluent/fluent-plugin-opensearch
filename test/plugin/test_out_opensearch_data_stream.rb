@@ -743,4 +743,65 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('remove_me'))
   end
 
+  def test_bulk_error_logs_only_failed_items
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 201, '_index' => 'foo' } },
+          { 'create' => { 'status' => 201, '_index' => 'foo' } },
+          { 'create' => { 'status' => 400, '_index' => 'foo',
+                          'error' => { 'type' => 'mapper_parsing_exception', 'reason' => 'failed to parse' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo',
+        'data_stream_template_name' => 'foo_tpl'
+      })
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    error_log = Fluent::Engine.log.out.logs.find { |l| l.include?("Could not bulk insert") }
+    assert_not_nil error_log, "Expected an error log entry for bulk insert failure"
+    assert_match(/failed items:/, error_log)
+    assert_match(/400/, error_log)
+    assert_no_match(/201/, error_log)
+  end
+
+  def test_bulk_error_logs_5xx_items
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 200, '_index' => 'foo' } },
+          { 'create' => { 'status' => 500, '_index' => 'foo',
+                          'error' => { 'type' => 'internal_server_error' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo',
+        'data_stream_template_name' => 'foo_tpl'
+      })
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    error_log = Fluent::Engine.log.out.logs.find { |l| l.include?("Could not bulk insert") }
+    assert_not_nil error_log, "Expected an error log entry for bulk insert failure"
+    assert_match(/500/, error_log)
+    assert_no_match(/\"status\"=>200/, error_log)
+  end
+
 end
+
