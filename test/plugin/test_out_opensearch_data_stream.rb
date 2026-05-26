@@ -767,7 +767,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     driver(conf).run(default_tag: 'test') do
       driver.feed(sample_record)
     end
-    error_log = Fluent::Engine.log.out.logs.find { |l| l.include?("Could not bulk insert") }
+    error_log = driver.logs.find { |l| l.include?("Could not bulk insert") }
     assert_not_nil error_log, "Expected an error log entry for bulk insert failure"
     assert_match(/1 item\(s\) failed/, error_log)
     assert_no_match(/201/, error_log)
@@ -796,7 +796,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     driver(conf).run(default_tag: 'test') do
       driver.feed(sample_record)
     end
-    error_log = Fluent::Engine.log.out.logs.find { |l| l.include?("Could not bulk insert") }
+    error_log = driver.logs.find { |l| l.include?("Could not bulk insert") }
     assert_not_nil error_log, "Expected an error log entry for bulk insert failure"
     assert_match(/1 item\(s\) failed/, error_log)
     assert_no_match(/200/, error_log)
@@ -865,7 +865,7 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     d.run(default_tag: 'test') do
       d.feed(event_time, sample_record)
     end
-    error_log = Fluent::Engine.log.out.logs.find { |l| l.include?("Could not bulk insert") }
+    error_log = d.logs.find { |l| l.include?("Could not bulk insert") }
     assert_not_nil error_log, "Expected summary error log even when emit_error_label_event is false"
   end
 
