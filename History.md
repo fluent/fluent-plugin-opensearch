@@ -2,6 +2,10 @@
 
 ### [Unreleased]
 
+### 1.1.6
+ - out\_opensearch\_data\_stream: filter failed items in data stream bulk error log (#175)
+ - out\_opensearch: fix default value of `refresh_credentials_interval` (#159)
+
 ### 1.1.5
  - Fix bundle installation error on GitHub Action (#143)
  - Prevent AWS credentials refresh from stopping on exception (#142)
