@@ -1,9 +1,9 @@
 # Fluent::Plugin::OpenSearch, a plugin for [Fluentd](http://fluentd.org)
 
-[![Gem Version](https://badge.fury.io/rb/fluent-plugin-opensearch.png)](http://badge.fury.io/rb/fluent-plugin-opensearch)
-![Testing on Windows](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Windows/badge.svg?branch=main)
-![Testing on macOS](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20macOS/badge.svg?branch=main)
-![Testing on Ubuntu](https://github.com/fluent/fluent-plugin-opensearch/workflows/Testing%20on%20Ubuntu/badge.svg?branch=main)
+[![Gem Version](https://badge.fury.io/rb/fluent-plugin-opensearch.svg)](https://badge.fury.io/rb/fluent-plugin-opensearch)
+[![Testing on Windows](https://github.com/fluent/fluent-plugin-opensearch/actions/workflows/windows.yml/badge.svg)](https://github.com/fluent/fluent-plugin-opensearch/actions/workflows/windows.yml)
+[![Testing on macOS](https://github.com/fluent/fluent-plugin-opensearch/actions/workflows/macos.yml/badge.svg)](https://github.com/fluent/fluent-plugin-opensearch/actions/workflows/macos.yml)
+[![Testing on Ubuntu](https://github.com/fluent/fluent-plugin-opensearch/actions/workflows/linux.yml/badge.svg)](https://github.com/fluent/fluent-plugin-opensearch/actions/workflows/linux.yml)
 [![Coverage Status](https://coveralls.io/repos/github/fluent/fluent-plugin-opensearch/badge.svg?branch=upload-coverage-into-coveralls)](https://coveralls.io/github/fluent/fluent-plugin-opensearch?branch=main)
 
 Send your logs to OpenSearch (and search them with OpenSearch Dashboards maybe?)
