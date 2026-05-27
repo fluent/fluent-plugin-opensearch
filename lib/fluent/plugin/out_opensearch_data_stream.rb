@@ -174,6 +174,7 @@ module Fluent::Plugin
         CREATE_OP => {}
       }
       tag = chunk.metadata.tag
+      records = []
       chunk.msgpack_each do |time, record|
         next unless record.is_a? Hash
         begin
@@ -194,6 +195,7 @@ module Fluent::Plugin
             @remove_keys.each { |key| record.delete(key) }
           end
           bulk_message = append_record_to_messages(CREATE_OP, {}, headers, record, bulk_message)
+          records << [time, record]
         rescue => e
           emit_error_label_event do
             router.emit_error_event(tag, time, record, e)
@@ -210,7 +212,18 @@ module Fluent::Plugin
       begin
         response = client(host).bulk(params)
         if response['errors']
-          log.error "Could not bulk insert to Data Stream: #{data_stream_name} #{response}"
+          failed_count = response['items'].count { |item| item.values.first['status'] >= 300 }
+          log.error "Could not bulk insert to Data Stream: #{data_stream_name}, #{failed_count} item(s) failed."
+          if emit_error_label_event?
+            response['items'].each_with_index do |item, idx|
+              status = item.values.first['status']
+              next unless status >= 300
+              time, record = records[idx]
+              next if record.nil?
+              error_info = item.values.first['error']
+              router.emit_error_event(tag, time, record, RuntimeError.new("status #{status}: #{error_info}"))
+            end
+          end
         end
       rescue => e
         raise RecoverableRequestFailure, "could not push logs to OpenSearch cluster (#{data_stream_name}): #{e.message}"
@@ -229,3 +242,4 @@ module Fluent::Plugin
     end
   end
 end
+

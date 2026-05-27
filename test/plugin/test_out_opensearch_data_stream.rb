@@ -743,4 +743,131 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('remove_me'))
   end
 
+  def test_bulk_error_logs_only_failed_items
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 201, '_index' => 'foo' } },
+          { 'create' => { 'status' => 201, '_index' => 'foo' } },
+          { 'create' => { 'status' => 400, '_index' => 'foo',
+                          'error' => { 'type' => 'mapper_parsing_exception', 'reason' => 'failed to parse' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo',
+        'data_stream_template_name' => 'foo_tpl'
+      })
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    error_log = driver.logs.find { |l| l.include?("Could not bulk insert") }
+    assert_not_nil error_log, "Expected an error log entry for bulk insert failure"
+    assert_match(/1 item\(s\) failed/, error_log)
+    assert_no_match(/201/, error_log)
+  end
+
+  def test_bulk_error_logs_5xx_items
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 200, '_index' => 'foo' } },
+          { 'create' => { 'status' => 500, '_index' => 'foo',
+                          'error' => { 'type' => 'internal_server_error' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo',
+        'data_stream_template_name' => 'foo_tpl'
+      })
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    error_log = driver.logs.find { |l| l.include?("Could not bulk insert") }
+    assert_not_nil error_log, "Expected an error log entry for bulk insert failure"
+    assert_match(/1 item\(s\) failed/, error_log)
+    assert_no_match(/200/, error_log)
+  end
+
+  def test_bulk_error_emits_failed_records_to_error_label
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 201, '_index' => 'foo' } },
+          { 'create' => { 'status' => 400, '_index' => 'foo',
+                          'error' => { 'type' => 'mapper_parsing_exception', 'reason' => 'failed to parse' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo',
+        'data_stream_template_name' => 'foo_tpl',
+        'emit_error_label_event' => 'true'
+      })
+    error_events = []
+    flexmock(Fluent::Engine).should_receive(:emit_error_event).and_return { |tag, time, record, e|
+      error_events << { tag: tag, record: record, error: e }
+    }
+    d = driver(conf)
+    flexmock(d.instance.router).should_receive(:emit_error_event).and_return { |tag, time, record, e|
+      error_events << { tag: tag, record: record, error: e }
+    }
+    d.run(default_tag: 'test') do
+      d.feed(event_time, sample_record)
+      d.feed(event_time, sample_record)
+    end
+    assert_equal 1, error_events.size, "Expected exactly one record routed to @ERROR"
+    assert_match(/400/, error_events.first[:error].message)
+  end
+
+  def test_bulk_error_does_not_emit_error_events_when_disabled
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 400, '_index' => 'foo',
+                          'error' => { 'type' => 'mapper_parsing_exception', 'reason' => 'failed to parse' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    conf = config_element(
+      'ROOT', '', {
+        '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+        'data_stream_name' => 'foo',
+        'data_stream_template_name' => 'foo_tpl',
+        'emit_error_label_event' => 'false'
+      })
+    error_events = []
+    d = driver(conf)
+    flexmock(d.instance.router).should_receive(:emit_error_event).never
+    d.run(default_tag: 'test') do
+      d.feed(event_time, sample_record)
+    end
+    error_log = d.logs.find { |l| l.include?("Could not bulk insert") }
+    assert_not_nil error_log, "Expected summary error log even when emit_error_label_event is false"
+  end
+
 end
+
