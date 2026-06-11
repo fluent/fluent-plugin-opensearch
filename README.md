@@ -902,7 +902,7 @@ compression_level best_compression
 
 ### prefer_oj_serializer
 
-With default behavior, OpenSearch client uses `Yajl` as JSON encoder/decoder.
+With default behavior, OpenSearch client uses `JSON` as JSON encoder/decoder.
 `Oj` is the alternative high performance JSON encoder/decoder.
 When this parameter sets as `true`, OpenSearch client uses `Oj` as JSON encoder/decoder.
 

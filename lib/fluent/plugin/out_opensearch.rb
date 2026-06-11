@@ -369,7 +369,7 @@ module Fluent::Plugin
           OpenSearch::API.settings[:serializer] = Fluent::Plugin::Serializer::Oj
         end
       rescue LoadError
-        @dump_proc = Yajl.method(:dump)
+        @dump_proc = JSON.method(:generate)
       end
 
       raise Fluent::ConfigError, "`password` must be present if `user` is present" if @user && @password.nil?
@@ -940,7 +940,7 @@ module Fluent::Plugin
             {"_index" => {"order" => "desc"}}
          ]
         }
-        result = client.search(options.merge(:body => Yajl.dump(query)))
+        result = client.search(options.merge(:body => JSON.generate(query)))
         # There should be just one hit per _id, but in case there still is multiple, just the oldest index is stored to map
         result['hits']['hits'].each do |hit|
           indices[hit["_id"]] = hit["_index"]
