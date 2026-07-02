@@ -33,7 +33,7 @@ module Fluent::OpenSearchIndexTemplate
       raise "If you specify a template_name you must specify a valid template file (checked '#{template_file}')!"
     end
     file_contents = IO.read(template_file).gsub(/\n/,'')
-    JSON.parse(file_contents)
+    JSON.parse(file_contents, allow_duplicate_key: true)
   end
 
   def get_custom_template(template_file, customize_template)
@@ -44,7 +44,7 @@ module Fluent::OpenSearchIndexTemplate
     customize_template.each do |key, value|
       file_contents = file_contents.gsub(key,value.downcase)
     end
-    JSON.parse(file_contents)
+    JSON.parse(file_contents, allow_duplicate_key: true)
   end
 
   def template_exists?(name, host = nil)
