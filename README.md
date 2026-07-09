@@ -1581,7 +1581,7 @@ If you want to expire AWS credentials in certain interval, you should specify `r
 
 ### Use OpenSearch Serverless
 
-If you want to use Serverless version of OpenSearch service, you have to specify `aoss` in `aws_service_name` under `endpoint` section:
+If you want to use the Serverless version of OpenSearch service, you have to specify `aoss` in `aws_service_name` under the `endpoint` section:
 
 ```aconf
 <endpoint>
@@ -1591,6 +1591,39 @@ If you want to use Serverless version of OpenSearch service, you have to specify
   aws_service_name aoss # default is es that is for AWS OpenSearch Service not Serverless.
 </endpoint>
 ```
+
+**NOTE:** OpenSearch Serverless only supports a subset of the OpenSearch APIs and does **not** serve the root/info endpoint (`GET /`) that this plugin uses to detect the OpenSearch major version at startup. If you leave the default `verify_os_version_at_startup true`, the plugin fails the version probe with `404`, keeps retrying, and never starts sending data:
+
+```
+Could not communicate to OpenSearch, resetting connection and trying again. [404]
+```
+
+To avoid this, disable the startup version check and pin the version (Serverless is OpenSearch 2.x compatible):
+
+```aconf
+<match es.**>
+  @type opensearch
+  logstash_format true
+  include_tag_key true
+  flush_interval 1s
+
+  # Serverless does not serve GET /, so skip the version probe.
+  verify_os_version_at_startup false
+  default_opensearch_version 2
+
+  <endpoint>
+    url https://CLUSTER_ENDPOINT_URL
+    region us-east-2
+    aws_service_name aoss
+  </endpoint>
+</match>
+```
+
+**Other Serverless limitations to keep in mind:**
+
+- Your IAM identity needs a **data access policy** on the collection (at least `aoss:CreateIndex` and `aoss:WriteDocument`). An IAM permission policy alone is not sufficient.
+- For `TIMESERIES` collections, custom document IDs are not supported. Do not set `id_key`, and keep the default `write_operation index`, since `create` / `update` / `upsert` require an `_id`.
+- Index templates, rollover/ILM, and data streams rely on APIs that Serverless does not expose, so template-related options and `@type opensearch_data_stream` are not usable against a Serverless collection.
 
 ## Troubleshooting
 
