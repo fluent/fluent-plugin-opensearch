@@ -605,10 +605,10 @@ request_timeout 15s # defaults to 5s
 
 ### reload_connections
 
-You can tune how the opensearch-transport host reloading feature works. By default it will reload the host list from the server every 10,000th request to spread the load. This can be an issue if your OpenSearch cluster is behind a Reverse Proxy, as Fluentd process may not have direct network access to the OpenSearch nodes.
+You can tune how the opensearch-transport host reloading feature works. By default it off but if you set true it will reload the host list from the server every 10,000th request to spread the load. This can be an issue if your OpenSearch cluster is behind a Reverse Proxy, as Fluentd process may not have direct network access to the OpenSearch nodes.
 
 ```
-reload_connections false # defaults to true
+reload_connections false # defaults to false
 ```
 
 ### reload_on_failure
