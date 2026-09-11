@@ -85,6 +85,27 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     }
   end
 
+  def chained_credentials_conf
+    {
+      access_key_id: '',
+      secret_access_key: '',
+      assume_role_arn: nil,
+      ecs_container_credentials_relative_uri: nil,
+    }
+  end
+
+  def with_stubbed_aws_responses
+    saved = Aws.config.key?(:stub_responses) ? Aws.config[:stub_responses] : :__unset__
+    Aws.config[:stub_responses] = true
+    yield
+  ensure
+    if saved == :__unset__
+      Aws.config.delete(:stub_responses)
+    else
+      Aws.config[:stub_responses] = saved
+    end
+  end
+
   def stub_opensearch_info(url="http://localhost:9200/", version="1.2.2")
     body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
     stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
@@ -315,7 +336,104 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal "fluentd", instance.endpoint.assume_role_session_name
     assert_nil instance.endpoint.assume_role_web_identity_token_file
     assert_nil instance.endpoint.sts_credentials_region
+    assert_equal 18000, instance.endpoint.refresh_credentials_interval
     assert_equal :es, instance.endpoint.aws_service_name
+  end
+
+  test 'aws_credentials returns credential provider with access key' do
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+      }, [
+        Fluent::Config::Element.new('endpoint', '', {
+                                      'url' => "https://search-opensearch.aws.example.com/",
+                                      'region' => "local",
+                                      'access_key_id' => 'YOUR_AWESOME_KEY',
+                                      'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                    }, []),
+        Fluent::Config::Element.new('buffer', 'tag', {}, [])
+
+      ])
+    instance = driver(config).instance
+    credentials = instance.aws_credentials(instance.endpoint)
+
+    assert_instance_of Aws::Credentials, credentials
+    assert_equal 'YOUR_AWESOME_KEY', credentials.credentials.access_key_id
+  end
+
+  test 'aws_credentials returns refreshable credential provider with assume_role_arn' do
+    with_stubbed_aws_responses do
+      config = Fluent::Config::Element.new(
+        'ROOT', '', {
+          '@type' => 'opensearch',
+        }, [
+          Fluent::Config::Element.new('endpoint', '', {
+                                        'url' => "https://search-opensearch.aws.example.com/",
+                                        'region' => "local",
+                                        'assume_role_arn' => 'arn:aws:iam::123456789012:role/some-role',
+                                      }, []),
+          Fluent::Config::Element.new('buffer', 'tag', {}, [])
+
+        ])
+      instance = driver(config).instance
+      credentials = instance.aws_credentials(instance.endpoint)
+
+      assert_instance_of Aws::AssumeRoleCredentials, credentials
+      assert_kind_of Aws::RefreshingCredentials, credentials
+      assert_true credentials.credentials.set?
+    end
+  end
+
+  test 'aws_credentials falls back to the next provider when a provider has no credentials' do
+    unset_provider = flexmock('unset provider', credentials: Aws::Credentials.new(nil, nil))
+    ecs_provider = flexmock('ecs provider', credentials: Aws::Credentials.new('ECS_KEY', 'ECS_SECRET'))
+    flexmock(Aws::SharedCredentials).should_receive(:new).and_return(unset_provider)
+    flexmock(Aws::InstanceProfileCredentials).should_receive(:new).and_return(unset_provider)
+    flexmock(Aws::ECSCredentials).should_receive(:new).and_return(ecs_provider)
+    instance = driver.instance
+
+    assert_same ecs_provider, instance.aws_credentials(chained_credentials_conf)
+  end
+
+  test 'aws_credentials raises when no provider has usable credentials' do
+    unset_provider = flexmock('unset provider', credentials: Aws::Credentials.new(nil, nil))
+    flexmock(Aws::SharedCredentials).should_receive(:new).and_return(unset_provider)
+    flexmock(Aws::InstanceProfileCredentials).should_receive(:new).and_return(unset_provider)
+    flexmock(Aws::ECSCredentials).should_receive(:new)
+      .and_raise(ArgumentError.new("Cannot instantiate an ECS Credential Provider without a credential path or endpoint."))
+    instance = driver.instance
+
+    assert_raise(RuntimeError.new("No valid AWS credentials found.")) do
+      instance.aws_credentials(chained_credentials_conf)
+    end
+  end
+
+  test 'credentials provider is passed to aws_sigv4 middleware' do
+    with_stubbed_aws_responses do
+      config = Fluent::Config::Element.new(
+        'ROOT', '', {
+          '@type' => 'opensearch',
+        }, [
+          Fluent::Config::Element.new('endpoint', '', {
+                                        'url' => "https://search-opensearch.aws.example.com/",
+                                        'region' => "local",
+                                        'assume_role_arn' => 'arn:aws:iam::123456789012:role/some-role',
+                                      }, []),
+          Fluent::Config::Element.new('buffer', 'tag', {}, [])
+
+        ])
+      instance = driver(config).instance
+      # Reaching into Faraday internals. If this breaks after a Faraday or
+      # faraday_middleware-aws-sigv4 update, check RackBuilder::Handler.
+      handler = instance.client.transport.transport.connections.first.connection.builder.handlers.find { |h|
+        h.klass == FaradayMiddleware::AwsSigV4
+      }
+
+      assert_not_nil handler
+      signer = handler.build(proc {}).instance_variable_get(:@signer)
+      assert_instance_of Aws::AssumeRoleCredentials, signer.credentials_provider
+      assert_same instance.instance_variable_get(:@_aws_credentials), signer.credentials_provider
+    end
   end
 
   data("OpenSearch Service" => [:es, 'es'],

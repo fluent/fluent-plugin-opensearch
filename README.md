@@ -1568,7 +1568,7 @@ In this case, the endpoint configuration looks like:
 
 ### Expiring AWS credentials
 
-If you want to expire AWS credentials in certain interval, you should specify `refresh_credentials_interval` parameter under `endpoint` section:
+Credentials obtained from STS, IMDS or ECS are refreshed by the AWS SDK before they expire, so you usually do not need to change this parameter. If you want to recreate the credential provider forcibly in a certain interval, you should specify `refresh_credentials_interval` parameter under `endpoint` section:
 
 ```aconf
 <endpoint>
