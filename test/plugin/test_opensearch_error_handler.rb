@@ -596,7 +596,6 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
             "_type"  : "bar",
             "_id" : "6",
             "status" : 500,
-            "_type"  : "bar",
             "error" : {
               "type" : "out_of_memory_error",
               "reason":"Java heap space"

@@ -3648,7 +3648,6 @@ class OpenSearchOutputTest < Test::Unit::TestCase
                 "_index" : "foo",
                 "_type"  : "bar",
                 "_id" : "abc",
-                "_id" : "abc",
                 "status" : 409
               }
             }
