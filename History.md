@@ -1,6 +1,7 @@
 ## Changelog [[tags]](https://github.com/fluent/fluent-plugin-opensearch/tags)
 
 ### [Unreleased]
+ - out\_opensearch: keep AWS credential providers refreshable to fix expired SigV4 tokens with assume\_role\_arn (#188)
 
 ### 1.1.6
  - out\_opensearch\_data\_stream: filter failed items in data stream bulk error log (#175)

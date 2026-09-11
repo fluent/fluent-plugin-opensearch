@@ -225,13 +225,13 @@ module Fluent::Plugin
         if conf[:assume_role_arn].nil?
           aws_container_credentials_relative_uri = conf[:ecs_container_credentials_relative_uri] || ENV["AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"]
           if aws_container_credentials_relative_uri.nil?
-            credentials = Aws::SharedCredentials.new({retries: 2}).credentials rescue nil
-            credentials ||= Aws::InstanceProfileCredentials.new.credentials rescue nil
-            credentials ||= Aws::ECSCredentials.new.credentials
+            credentials = usable_credentials_provider { Aws::SharedCredentials.new }
+            credentials ||= usable_credentials_provider { Aws::InstanceProfileCredentials.new }
+            credentials ||= usable_credentials_provider { Aws::ECSCredentials.new }
           else
             credentials = Aws::ECSCredentials.new({
                             credential_path: aws_container_credentials_relative_uri
-                          }).credentials
+                          })
           end
         else
           if conf[:assume_role_web_identity_token_file].nil?
@@ -239,19 +239,26 @@ module Fluent::Plugin
                             role_arn: conf[:assume_role_arn],
                             role_session_name: conf[:assume_role_session_name],
                             region: sts_creds_region(conf)
-                          }).credentials
+                          })
           else
             credentials = Aws::AssumeRoleWebIdentityCredentials.new({
                             role_arn: conf[:assume_role_arn],
                             web_identity_token_file: conf[:assume_role_web_identity_token_file],
                             region: sts_creds_region(conf)
-                          }).credentials
+                          })
           end
         end
       end
-      raise "No valid AWS credentials found." unless credentials.set?
+      raise "No valid AWS credentials found." unless credentials&.credentials&.set?
 
       credentials
+    end
+
+    def usable_credentials_provider
+      provider = yield
+      provider if provider.credentials&.set?
+    rescue
+      nil
     end
 
     def sts_creds_region(conf)
@@ -339,7 +346,7 @@ module Fluent::Plugin
           }
         end
       end
-      # If AWS credentials is set, consider to expire credentials information forcibly before expired.
+      # Credential providers refresh themselves near expiration. This timer recreates them forcibly.
       @credential_mutex = Mutex.new
       if @endpoint
         @_aws_credentials = aws_credentials(@endpoint)
@@ -630,7 +637,7 @@ module Fluent::Plugin
                              :aws_sigv4,
                              service: @endpoint.aws_service_name.to_s,
                              region: @endpoint.region,
-                             credentials: @_aws_credentials,
+                             credentials_provider: @_aws_credentials,
                            )
 
                            f.adapter @http_backend, @backend_options
