@@ -1,7 +1,13 @@
 ## Changelog [[tags]](https://github.com/fluent/fluent-plugin-opensearch/tags)
 
 ### [Unreleased]
+
+### 1.1.7
+ - test: remove duplicate keys from bulk response fixtures (#190)
  - out\_opensearch: keep AWS credential providers refreshable to fix expired SigV4 tokens with assume\_role\_arn (#188)
+ - docs: document OpenSearch Serverless startup version-check workaround (#186)
+ - Allow duplicate keys in JSON parser (#185)
+ - Replace yajl-ruby with the json gem for JSON handling (#183)
 
 ### 1.1.6
  - out\_opensearch\_data\_stream: filter failed items in data stream bulk error log (#175)
