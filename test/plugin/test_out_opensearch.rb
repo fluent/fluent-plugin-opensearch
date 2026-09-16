@@ -1133,6 +1133,53 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_requested(:put, "https://logs.google.com:777/os//#{endpoint}/myapp_alias_template-test.template", times: 1)
   end
 
+  # A customize_template value can come from a tag or a record field.
+  INJECTED_TEMPLATE_VALUE = 'x": {}}, "index_patterns": ["*"], "order": 2147483647, "aliases": {"y'
+
+  def custom_template(template_file_name, appid)
+    template_file = File.join(File.dirname(__FILE__), template_file_name)
+    driver.instance.get_custom_template(template_file,
+                                        {"--appid--" => appid, "--index_prefix--" => "mylogs"})
+  end
+
+  data("legacy_template" => ['test_alias_template.json',
+                             %w(aliases mappings order settings template)],
+       "new_template"    => ['test_index_alias_template.json',
+                             %w(index_patterns priority template)])
+  def test_custom_template_value_cannot_add_template_keys(data)
+    template_file_name, expected_keys = data
+
+    template = custom_template(template_file_name, INJECTED_TEMPLATE_VALUE)
+
+    assert_equal(expected_keys, template.keys.sort)
+  end
+
+  def test_custom_template_value_stays_a_single_string
+    template = custom_template('test_alias_template.json', INJECTED_TEMPLATE_VALUE)
+
+    assert_equal(5, template["order"])
+    assert_equal(["#{INJECTED_TEMPLATE_VALUE}-alias"], template["aliases"].keys)
+  end
+
+  def test_custom_template_value_keeps_a_backslash
+    template = custom_template('test_alias_template.json', 'a\0b')
+
+    assert_equal(['a\0b-alias'], template["aliases"].keys)
+  end
+
+  # A key is not always inside a string. If JSON is expected there, the value
+  # is that piece of JSON.
+  def test_custom_template_value_outside_a_string_stays_json
+    template_file = File.join(File.dirname(__FILE__), 'test_settings_template.json')
+
+    template = driver.instance.get_custom_template(template_file,
+                                                   {"--settings--" => '{"number_of_shards": 5}',
+                                                    "--index_prefix--" => "mylogs"})
+
+    assert_equal({"number_of_shards" => 5}, template["settings"])
+    assert_equal("mylogs*", template["template"])
+  end
+
   data("legacy_template" => [true, "_template"],
        "new_template"    => [false, "_index_template"])
   def test_custom_template_installation_for_host_placeholder(data)

@@ -24,6 +24,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+require 'json'
+
 require 'fluent/error'
 require_relative './opensearch_error'
 
@@ -42,9 +44,23 @@ module Fluent::OpenSearchIndexTemplate
     end
     file_contents = IO.read(template_file).gsub(/\n/,'')
     customize_template.each do |key, value|
-      file_contents = file_contents.gsub(key,value.downcase)
+      file_contents = substitute_template_value(file_contents, key, value.downcase)
     end
     JSON.parse(file_contents, allow_duplicate_key: true)
+  end
+
+  # A value can come from a tag or a record field. If its key is inside a JSON
+  # string ($1), a `"` in the value would end that string, and the rest would
+  # be read as extra template keys, so the value is escaped there. If the key
+  # is anywhere else, the value is a piece of JSON, like a whole settings
+  # object, so it goes in as it is. The block form stops gsub from reading
+  # backslash sequences in the value.
+  def substitute_template_value(file_contents, key, value)
+    json_string = /"(?:\\.|[^"\\])*"/
+    file_contents.gsub(/(#{json_string})|#{Regexp.escape(key)}/) do
+      # to_json puts the value in quotes, so drop them: a"b => a\"b
+      $1 ? $1.gsub(key) { value.to_json[1..-2] } : value
+    end
   end
 
   def template_exists?(name, host = nil)
