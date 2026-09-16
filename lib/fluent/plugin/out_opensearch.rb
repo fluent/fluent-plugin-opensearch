@@ -101,7 +101,9 @@ module Fluent::Plugin
     config_param :password, :string, :default => nil, :secret => true
     config_param :path, :string, :default => nil
     config_param :scheme, :enum, :list => [:https, :http], :default => :http
-    config_param :hosts, :string, :default => nil
+    # `hosts` accepts "https://user:password@host" and "%{user}:%{password}@",
+    # so it is masked in the configuration dump like `password` is.
+    config_param :hosts, :string, :default => nil, :secret => true
     config_param :target_index_key, :string, :default => nil
     config_param :time_key_format, :string, :default => nil
     config_param :time_precision, :integer, :default => 9
@@ -185,7 +187,8 @@ module Fluent::Plugin
 
     config_section :endpoint, multi: false do
       config_param :region, :string
-      config_param :url do |c|
+      # The URL can carry a user and a password, so mask it in the dump.
+      config_param :url, secret: true do |c|
         c.chomp("/")
       end
       config_param :access_key_id, :string, :default => ""

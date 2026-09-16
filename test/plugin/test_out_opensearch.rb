@@ -340,6 +340,41 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal :es, instance.endpoint.aws_service_name
   end
 
+  test 'hosts is masked in the configuration dump' do
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+        'hosts' => 'https://john:passw0rd@host1:443/elastic/',
+      }, [
+        Fluent::Config::Element.new('buffer', 'tag', {}, [])
+      ])
+    driver(config)
+
+    dump = config.to_masked_element.to_s
+    assert_false dump.include?('passw0rd')
+    assert_true dump.include?('hosts xxxxxx')
+  end
+
+  test 'endpoint url is masked in the configuration dump' do
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+      }, [
+        Fluent::Config::Element.new('endpoint', '', {
+                                      'url' => "https://john:passw0rd@search-opensearch.aws.example.com/",
+                                      'region' => "local",
+                                      'access_key_id' => 'YOUR_AWESOME_KEY',
+                                      'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                    }, []),
+        Fluent::Config::Element.new('buffer', 'tag', {}, [])
+      ])
+    driver(config)
+
+    dump = config.to_masked_element.to_s
+    assert_false dump.include?('passw0rd')
+    assert_true dump.include?('url xxxxxx')
+  end
+
   test 'aws_credentials returns credential provider with access key' do
     config = Fluent::Config::Element.new(
       'ROOT', '', {
