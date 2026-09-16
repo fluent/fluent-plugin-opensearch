@@ -2876,6 +2876,76 @@ class OpenSearchOutputTest < Test::Unit::TestCase
       connection_spec = {host: "myhost-1", port: 9200, scheme: "http"}
       assert_equal("could not push logs to OpenSearch cluster (#{connection_spec.inspect}): [503] ", exception.message)
     end
+
+    # `extract_placeholders` needs a real chunk, so replace it with the value
+    # that a crafted tag or record field would expand to.
+    def expand_hosts_with(hosts, placeholder_value)
+      instance = driver.configure("hosts #{hosts}").instance
+      instance.define_singleton_method(:extract_placeholders) do |value, _chunk|
+        value.gsub('${pipeline_id}', placeholder_value)
+      end
+      instance.expand_host_placeholders(nil)
+    end
+
+    data("extra host" => "evil.example.com,myhost",
+         "userinfo"   => "1@evil.example.com",
+         "path"       => "1/evil.example.com",
+         "space"      => "1 evil.example.com",
+         "two ports"  => "1:9999:8888")
+    def test_rejects_placeholder_value_which_is_not_a_host_name(placeholder_value)
+      assert_raise(Fluent::Plugin::OpenSearchOutput::UnrecoverableRequestFailure) {
+        expand_hosts_with("myhost-${pipeline_id},logs2.example.com:9201", placeholder_value)
+      }
+    end
+
+    # A port is allowed, so that a tag or a record field can carry
+    # "host:port". It only picks a port on a host the value already picked.
+    def test_accepts_placeholder_value_with_a_port
+      assert_equal("os.internal:9200,logs2.example.com:9201",
+                   expand_hosts_with("${pipeline_id},logs2.example.com:9201", "os.internal:9200"))
+    end
+
+    # The operator writes the structure, so only the placeholder value is
+    # checked. Every form that `get_connection_options` accepts keeps working.
+    data("plain host" => ["myhost-${pipeline_id},logs2.example.com:9201",
+                          "myhost-1,logs2.example.com:9201"],
+         "url"        => ["https://logs-${pipeline_id}.example.com:9201/os",
+                          "https://logs-1.example.com:9201/os"],
+         "userinfo"   => ["https://john:pass@logs-${pipeline_id}.example.com/os",
+                          "https://john:pass@logs-1.example.com/os"],
+         "ipv6"       => ["http://[2404:7a80:d440:3000:de:7311:6329:2e6c]:9201,myhost-${pipeline_id}",
+                          "http://[2404:7a80:d440:3000:de:7311:6329:2e6c]:9201,myhost-1"])
+    def test_keeps_the_configured_host_structure(data)
+      hosts, expected = data
+      assert_equal(expected, expand_hosts_with(hosts, "1"))
+    end
+
+    def test_warns_when_placeholder_host_is_used_with_credentials
+      d = driver(%{
+        host     logs-${tag}.example.com
+        user     john
+        password doe
+        @log_level info
+      })
+      assert_true(d.logs.any? { |log| log.include?("'host' uses a placeholder") })
+    end
+
+    def test_warns_when_hosts_embeds_credentials_in_front_of_a_placeholder
+      d = driver(%{
+        hosts https://john:secret@logs-${tag}.example.com/os
+        @log_level info
+      })
+      assert_true(d.logs.any? { |log| log.include?("in front of a host that a placeholder decides") })
+      assert_false(d.logs.any? { |log| log.include?("secret") })
+    end
+
+    def test_does_not_warn_when_credentials_belong_to_a_static_host
+      d = driver(%{
+        hosts https://john:secret@static.example.com/os,logs-${tag}.example.com
+        @log_level info
+      })
+      assert_false(d.logs.any? { |log| log.include?("in front of a host that a placeholder decides") })
+    end
   end
 
   def test_writes_to_logstash_index_with_specified_prefix_uppercase

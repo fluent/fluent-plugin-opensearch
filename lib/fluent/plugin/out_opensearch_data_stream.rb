@@ -155,11 +155,7 @@ module Fluent::Plugin
       data_stream_template_name = @data_stream_template_name
       host = nil
       if @use_placeholder
-        host = if @hosts
-                 extract_placeholders(@hosts, chunk)
-               else
-                 extract_placeholders(@host, chunk)
-               end
+        host = expand_host_placeholders(chunk)
         data_stream_name = extract_placeholders(@data_stream_name, chunk).downcase
         data_stream_template_name = extract_placeholders(@data_stream_template_name, chunk).downcase
         begin

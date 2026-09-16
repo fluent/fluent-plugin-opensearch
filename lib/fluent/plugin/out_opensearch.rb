@@ -95,6 +95,14 @@ module Fluent::Plugin
     DEFAULT_TARGET_BULK_BYTES = -1
     DEFAULT_POLICY_ID = "logstash-policy"
 
+    HOST_PLACEHOLDER_PATTERN = /\$\{[^}]*\}/
+    # A placeholder in `host`/`hosts` is expanded from the tag or a record
+    # field, so its value may only fill in a host name and a port.
+    # without this a log sender could add a host with ",", userinfo with "@" or a path with "/",
+    # and receive the configured user/password and custom_headers. A port is
+    # allowed because it can only be chosen on a host the value already picked.
+    HOST_PLACEHOLDER_VALUE_PATTERN = /\A[0-9A-Za-z_\-.]*(:[0-9]+)?\z/
+
     config_param :host, :string,  :default => 'localhost'
     config_param :port, :integer, :default => 9200
     config_param :user, :string, :default => nil
@@ -316,6 +324,8 @@ module Fluent::Plugin
         log.info "host placeholder and template installation makes your OpenSearch cluster a bit slow down(beta)."
       end
 
+      warn_host_placeholder_with_credentials
+
       @template_names = []
       if !dry_run?
         if @template_name && @template_file
@@ -479,6 +489,34 @@ module Fluent::Plugin
       elsif Fluent::Engine.respond_to?(:supervisor_mode)
         Fluent::Engine.supervisor_mode
       end
+    end
+
+    # A placeholder decides the host, so every credential the configuration
+    # holds follows it. `endpoint` is left alone because
+    # `get_connection_options` ignores the expanded host there.
+    def warn_host_placeholder_with_credentials
+      return if @endpoint
+
+      elements = (@hosts || @host).split(',')
+      return unless elements.any? { |element| element.match?(HOST_PLACEHOLDER_PATTERN) }
+
+      param_name = @hosts ? 'hosts' : 'host'
+      if @user || @password || !@custom_headers.empty?
+        log.warn "'#{param_name}' uses a placeholder, so 'user', 'password' and 'custom_headers' are sent to whichever host a tag or a record field expands to. Make sure that only trusted senders can set them."
+      end
+      if elements.any? { |element| credentials_before_placeholder?(element) }
+        # Do not put the element in the log: it might holds the password.
+        log.warn "'#{param_name}' has a user and password in front of a host that a placeholder decides, so they are sent to whichever host a tag or a record field expands to. Make sure that only trusted senders can set it."
+      end
+    end
+
+    # A user and password written in a URL sit in front of the host, so a
+    # placeholder that comes after them picks where they are sent.
+    def credentials_before_placeholder?(element)
+      userinfo = element.index('@')
+      placeholder = element.index('${')
+
+      !userinfo.nil? && !placeholder.nil? && userinfo < placeholder
     end
 
     def placeholder?(name, param)
@@ -847,6 +885,20 @@ module Fluent::Plugin
       return logstash_prefix, logstash_dateformat, index_name, template_name, customize_template, application_name, pipeline
     end
 
+    def expand_host_placeholders(chunk)
+      template = @hosts || @host
+      # Check each placeholder value, reject "," and so on here
+      # because it might change sending target host by sender unexpectedly.
+      template.scan(HOST_PLACEHOLDER_PATTERN).each do |placeholder|
+        value = extract_placeholders(placeholder, chunk)
+        next if HOST_PLACEHOLDER_VALUE_PATTERN.match?(value)
+
+        raise UnrecoverableRequestFailure, "Rejected #{value.dump} for #{placeholder} in 'host'/'hosts': a placeholder may only fill in a host name and a port."
+      end
+
+      extract_placeholders(template, chunk)
+    end
+
     def multi_workers_ready?
       true
     end
@@ -869,11 +921,7 @@ module Fluent::Plugin
       tag = chunk.metadata.tag
       chunk_id = dump_unique_id_hex(chunk.unique_id)
       extracted_values = expand_placeholders(chunk)
-      host = if @hosts
-               extract_placeholders(@hosts, chunk)
-             else
-               extract_placeholders(@host, chunk)
-             end
+      host = expand_host_placeholders(chunk)
 
       affinity_target_indices = get_affinity_target_indices(chunk)
       chunk.msgpack_each do |time, record|
