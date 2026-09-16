@@ -1892,6 +1892,43 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     end
   end
 
+  # Flush threads share @_os, so only one of them may look at it at a time.
+  def test_client_does_not_let_flush_threads_overlap
+    instance = driver.instance
+    counter = Mutex.new
+    inside = 0
+    max_inside = 0
+
+    instance.define_singleton_method(:get_connection_options) do |con_host = nil|
+      counter.synchronize do
+        inside += 1
+        max_inside = inside if inside > max_inside
+      end
+      sleep 0.05
+      counter.synchronize { inside -= 1 }
+      {hosts: [{host: con_host, port: 9200, scheme: 'http'}]}
+    end
+
+    threads = 3.times.map { |i| Thread.new { instance.client("host-#{i}") } }
+    threads.each(&:join)
+
+    assert_equal(1, max_inside)
+  end
+
+  def test_client_returns_a_client_for_the_host_it_was_asked_for
+    instance = driver.instance
+
+    results = 3.times.map { |i|
+      Thread.new do
+        5.times.map { instance.client("host-#{i}:9201").transport.transport.hosts.first[:host] }
+      end
+    }.map(&:value)
+
+    results.each_with_index do |hosts, i|
+      assert_equal(["host-#{i}"], hosts.uniq)
+    end
+  end
+
   def test_password_is_required_if_specify_user
     config = %{
       user john

@@ -211,6 +211,8 @@ module Fluent::Plugin
 
     def initialize
       super
+      # `configure` already builds clients, so this cannot wait until then.
+      @client_mutex = Mutex.new
     end
 
     ######################################################################################################
@@ -622,6 +624,14 @@ module Fluent::Plugin
     end
 
     def client(host = nil, compress_connection = false)
+      # Flush threads share @_os, and each of them may ask for a different
+      # host. Without this lock a thread can pass the check below and then
+      # pick up the client another thread just built for its own host, which
+      # sends the chunk to the wrong cluster.
+      @client_mutex.synchronize { build_or_reuse_client(host, compress_connection) }
+    end
+
+    def build_or_reuse_client(host, compress_connection)
       # check here to see if we already have a client connection for the given host
       connection_options = get_connection_options(host)
 
