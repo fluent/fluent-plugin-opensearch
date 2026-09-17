@@ -2887,22 +2887,60 @@ class OpenSearchOutputTest < Test::Unit::TestCase
       instance.expand_host_placeholders(nil)
     end
 
-    data("extra host" => "evil.example.com,myhost",
-         "userinfo"   => "1@evil.example.com",
-         "path"       => "1/evil.example.com",
-         "space"      => "1 evil.example.com",
-         "two ports"  => "1:9999:8888")
-    def test_rejects_placeholder_value_which_is_not_a_host_name(placeholder_value)
+    data("host name"   => ["${pipeline_id},logs2.example.com:9201", "os.internal"],
+         "with port"   => ["${pipeline_id},logs2.example.com:9201", "os.internal:9200"],
+         "in a url"    => ["https://${pipeline_id}/os", "logs.example.com:9201"],
+         "ipv6"        => ["http://${pipeline_id}:9201", "[2001:db8::1]"],
+         "ipv6 + port" => ["http://${pipeline_id}/os", "[2001:db8::1]:9201"],
+         "ipv6 in []"  => ["http://[${pipeline_id}]:9201", "2001:db8::1"])
+    def test_accepts_placeholder_value_which_fills_in_the_whole_host(data)
+      hosts, placeholder_value = data
+      assert_equal(hosts.sub('${pipeline_id}', placeholder_value),
+                   expand_hosts_with(hosts, placeholder_value))
+    end
+
+    data("extra host"   => "evil.example.com,myhost",
+         "userinfo"     => "1@evil.example.com",
+         "path"         => "1/evil.example.com",
+         "space"        => "1 evil.example.com",
+         "other domain" => "evil.example.net",
+         "port"         => "1:9999",
+         "empty"        => "")
+    def test_rejects_placeholder_value_which_does_not_fit_its_place(placeholder_value)
       assert_raise(Fluent::Plugin::OpenSearchOutput::UnrecoverableRequestFailure) {
         expand_hosts_with("myhost-${pipeline_id},logs2.example.com:9201", placeholder_value)
       }
     end
 
-    # A port is allowed, so that a tag or a record field can carry
-    # "host:port". It only picks a port on a host the value already picked.
-    def test_accepts_placeholder_value_with_a_port
-      assert_equal("os.internal:9200,logs2.example.com:9201",
-                   expand_hosts_with("${pipeline_id},logs2.example.com:9201", "os.internal:9200"))
+    # `get_connection_options` reads an element with `URI()`, which cannot
+    # read an IPv6 address when the element has no scheme.
+    data("empty"     => "",
+         "port only" => ":9999",
+         "two ports" => "os.internal:9200:9201",
+         "path"      => "myhost/evil.example.com",
+         "ipv6"      => "[2001:db8::1]")
+    def test_rejects_placeholder_value_which_is_not_a_host_name(placeholder_value)
+      assert_raise(Fluent::Plugin::OpenSearchOutput::UnrecoverableRequestFailure) {
+        expand_hosts_with("${pipeline_id},logs2.example.com:9201", placeholder_value)
+      }
+    end
+
+    data("host name" => "os.internal:9200",
+         "ipv6"      => "[2001:db8::1]:9200")
+    def test_rejects_placeholder_value_with_a_port_when_the_port_is_configured(placeholder_value)
+      assert_raise(Fluent::Plugin::OpenSearchOutput::UnrecoverableRequestFailure) {
+        expand_hosts_with("http://${pipeline_id}:9201", placeholder_value)
+      }
+    end
+
+    data("in []"      => ["http://[${pipeline_id}]:9201", "2001:db8"],
+         "extra host" => ["http://[${pipeline_id}]:9201", "[2001:db8::1],[2001:db8::2]"],
+         "whole host" => ["http://${pipeline_id}:9201", "[2001:db8]"])
+    def test_rejects_placeholder_value_which_is_not_an_ipv6_address(data)
+      hosts, placeholder_value = data
+      assert_raise(Fluent::Plugin::OpenSearchOutput::UnrecoverableRequestFailure) {
+        expand_hosts_with(hosts, placeholder_value)
+      }
     end
 
     # The operator writes the structure, so only the placeholder value is
@@ -2913,8 +2951,8 @@ class OpenSearchOutputTest < Test::Unit::TestCase
                           "https://logs-1.example.com:9201/os"],
          "userinfo"   => ["https://john:pass@logs-${pipeline_id}.example.com/os",
                           "https://john:pass@logs-1.example.com/os"],
-         "ipv6"       => ["http://[2404:7a80:d440:3000:de:7311:6329:2e6c]:9201,myhost-${pipeline_id}",
-                          "http://[2404:7a80:d440:3000:de:7311:6329:2e6c]:9201,myhost-1"])
+         "ipv6"       => ["http://[2001:db8::1]:9201,myhost-${pipeline_id}",
+                          "http://[2001:db8::1]:9201,myhost-1"])
     def test_keeps_the_configured_host_structure(data)
       hosts, expected = data
       assert_equal(expected, expand_hosts_with(hosts, "1"))

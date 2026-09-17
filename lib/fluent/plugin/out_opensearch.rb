@@ -95,13 +95,15 @@ module Fluent::Plugin
     DEFAULT_TARGET_BULK_BYTES = -1
     DEFAULT_POLICY_ID = "logstash-policy"
 
-    HOST_PLACEHOLDER_PATTERN = /\$\{[^}]*\}/
     # A placeholder in `host`/`hosts` is expanded from the tag or a record
-    # field, so its value may only fill in a host name and a port.
-    # without this a log sender could add a host with ",", userinfo with "@" or a path with "/",
-    # and receive the configured user/password and custom_headers. A port is
-    # allowed because it can only be chosen on a host the value already picked.
-    HOST_PLACEHOLDER_VALUE_PATTERN = /\A[0-9A-Za-z_\-.]*(:[0-9]+)?\z/
+    # field, so a log sender chooses its value. Without a check the value
+    # could add a host with ",", userinfo with "@" or a path with "/", and
+    # the configured user/password and custom_headers would go to that host.
+    HOST_PLACEHOLDER_PATTERN = /\$\{[^}]*\}/
+    HOST_LABEL_PATTERN = /\A[0-9A-Za-z_\-]+\z/
+    HOST_NAME_PATTERN = /\A[0-9A-Za-z_\-]+(?:\.[0-9A-Za-z_\-]+)*\z/
+    # A host name or an IPv6 address in "[]", and the port that may follow it.
+    HOST_AND_PORT_PATTERN = /\A(\[[^\]]+\]|[^:]*)(?::([0-9]+))?\z/
 
     config_param :host, :string,  :default => 'localhost'
     config_param :port, :integer, :default => 9200
@@ -887,16 +889,48 @@ module Fluent::Plugin
 
     def expand_host_placeholders(chunk)
       template = @hosts || @host
-      # Check each placeholder value, reject "," and so on here
-      # because it might change sending target host by sender unexpectedly.
-      template.scan(HOST_PLACEHOLDER_PATTERN).each do |placeholder|
-        value = extract_placeholders(placeholder, chunk)
-        next if HOST_PLACEHOLDER_VALUE_PATTERN.match?(value)
+      template.split(',').each do |element|
+        offset = 0
+        while (match = HOST_PLACEHOLDER_PATTERN.match(element, offset))
+          offset = match.end(0)
+          value = extract_placeholders(match[0], chunk)
+          next if valid_host_placeholder_value?(value, match.pre_match, match.post_match)
 
-        raise UnrecoverableRequestFailure, "Rejected #{value.dump} for #{placeholder} in 'host'/'hosts': a placeholder may only fill in a host name and a port."
+          raise UnrecoverableRequestFailure, "Rejected #{value.dump} for #{match[0]} in 'host'/'hosts': a placeholder may only fill in the part of a host name that it stands for."
+        end
       end
 
       extract_placeholders(template, chunk)
+    end
+
+    # What a value may hold depends on where the operator put the placeholder.
+    # `before` and `after` are the parts of the element around it.
+    def valid_host_placeholder_value?(value, before, after)
+      # The operator wrote the "[]" that an IPv6 address needs.
+      return Resolv::IPv6::Regex.match?(value) if before.end_with?('[') && after.start_with?(']')
+
+      # The value continues a name the operator wrote, so a "." would move the
+      # request to another domain and a port cannot follow it.
+      return HOST_LABEL_PATTERN.match?(value) unless whole_host_placeholder?(before, after)
+
+      host, port = value.match(HOST_AND_PORT_PATTERN)&.captures
+      # The value may end with a port, unless the operator wrote one already.
+      return false if host.nil? || (port && after.start_with?(':'))
+
+      HOST_NAME_PATTERN.match?(host) || bracketed_ipv6?(host, before)
+    end
+
+    # The value fills in the whole host name when only a scheme or a userinfo
+    # comes before it and only a port or a path comes after it.
+    def whole_host_placeholder?(before, after)
+      (before.empty? || before.end_with?('//', '@')) &&
+        (after.empty? || after.start_with?(':', '/', '?', '#'))
+    end
+
+    # `URI()` in `get_connection_options` needs a scheme to read an IPv6
+    # address, and the operator writes the scheme, not the value.
+    def bracketed_ipv6?(host, before)
+      !before.empty? && host.start_with?('[') && Resolv::IPv6::Regex.match?(host[1..-2])
     end
 
     def multi_workers_ready?
