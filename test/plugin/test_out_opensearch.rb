@@ -106,6 +106,32 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     end
   end
 
+  def driver_with_captured_credential_refresh
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+      }, [
+        Fluent::Config::Element.new('endpoint', '', {
+                                      'url' => "https://search-opensearch.aws.example.com/",
+                                      'region' => "local",
+                                      'access_key_id' => 'YOUR_AWESOME_KEY',
+                                      'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                      'refresh_credentials_interval' => '18000',
+                                    }, []),
+        Fluent::Config::Element.new('buffer', 'tag', {}, [])
+      ])
+    d = Fluent::Test::Driver::Output.new(Fluent::Plugin::OpenSearchOutput)
+    timers = {}
+    d.instance.define_singleton_method(:timer_execute) do |title, interval, &block|
+      timers[title] = block
+    end
+    # Keep `configure` off the network.
+    d.instance.define_singleton_method(:detect_os_major_version) { 1 }
+    d.configure(config)
+
+    [d, timers[:out_opensearch_expire_credentials]]
+  end
+
   def stub_opensearch_info(url="http://localhost:9200/", version="1.2.2")
     body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
     stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
@@ -1889,6 +1915,43 @@ class OpenSearchOutputTest < Test::Unit::TestCase
       assert_equal 'j%2Bhn', host1[:user]
       assert_equal 'd%40e', host1[:password]
       assert_equal nil, host1[:path]
+    end
+  end
+
+  # Flush threads share @_os, so only one of them may look at it at a time.
+  def test_client_does_not_let_flush_threads_overlap
+    instance = driver.instance
+    counter = Mutex.new
+    inside = 0
+    max_inside = 0
+
+    instance.define_singleton_method(:get_connection_options) do |con_host = nil|
+      counter.synchronize do
+        inside += 1
+        max_inside = inside if inside > max_inside
+      end
+      sleep 0.05
+      counter.synchronize { inside -= 1 }
+      {hosts: [{host: con_host, port: 9200, scheme: 'http'}]}
+    end
+
+    threads = 3.times.map { |i| Thread.new { instance.client("host-#{i}") } }
+    threads.each(&:join)
+
+    assert_equal(1, max_inside)
+  end
+
+  def test_client_returns_a_client_for_the_host_it_was_asked_for
+    instance = driver.instance
+
+    results = 3.times.map { |i|
+      Thread.new do
+        5.times.map { instance.client("host-#{i}:9201").transport.transport.hosts.first[:host] }
+      end
+    }.map(&:value)
+
+    results.each_with_index do |hosts, i|
+      assert_equal(["host-#{i}"], hosts.uniq)
     end
   end
 
@@ -4116,5 +4179,44 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     d = driver(config)
     d.run
     assert { d.logs.any?(/\[error\]: Failed to get new AWS credentials: No valid AWS credentials found.\n/) }
+  end
+
+  test 'a failed credential refresh keeps the current credentials and client' do
+    d, refresh = driver_with_captured_credential_refresh
+    instance = d.instance
+    credentials = instance.instance_variable_get(:@_aws_credentials)
+    instance.instance_variable_set(:@_os, :cached_client)
+    flexmock(instance).should_receive(:aws_credentials)
+      .and_raise(::RuntimeError.new("No valid AWS credentials found."))
+
+    refresh.call
+
+    assert_same credentials, instance.instance_variable_get(:@_aws_credentials)
+    assert_equal :cached_client, instance.instance_variable_get(:@_os)
+    assert { d.logs.any?(/Failed to get new AWS credentials: No valid AWS credentials found./) }
+  end
+
+  # The refresh shares @_os with the flush threads, so it has to use their lock
+  # instead of one of its own.
+  test 'a credential refresh swaps the credentials under the client lock' do
+    d, refresh = driver_with_captured_credential_refresh
+    instance = d.instance
+    new_credentials = Aws::Credentials.new('NEW_KEY', 'NEW_SECRET')
+    flexmock(instance).should_receive(:aws_credentials).and_return(new_credentials)
+    instance.instance_variable_set(:@_os, :cached_client)
+
+    # Records what the plugin had done by the time it left the lock.
+    seen = []
+    fake_lock = Object.new
+    fake_lock.define_singleton_method(:synchronize) do |&block|
+      block.call
+      seen << [instance.instance_variable_get(:@_aws_credentials),
+               instance.instance_variable_get(:@_os)]
+    end
+    instance.instance_variable_set(:@client_mutex, fake_lock)
+
+    refresh.call
+
+    assert_equal [[new_credentials, nil]], seen
   end
 end
