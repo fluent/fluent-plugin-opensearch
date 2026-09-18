@@ -106,6 +106,32 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     end
   end
 
+  def driver_with_captured_credential_refresh
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+      }, [
+        Fluent::Config::Element.new('endpoint', '', {
+                                      'url' => "https://search-opensearch.aws.example.com/",
+                                      'region' => "local",
+                                      'access_key_id' => 'YOUR_AWESOME_KEY',
+                                      'secret_access_key' => 'YOUR_AWESOME_SECRET',
+                                      'refresh_credentials_interval' => '18000',
+                                    }, []),
+        Fluent::Config::Element.new('buffer', 'tag', {}, [])
+      ])
+    d = Fluent::Test::Driver::Output.new(Fluent::Plugin::OpenSearchOutput)
+    timers = {}
+    d.instance.define_singleton_method(:timer_execute) do |title, interval, &block|
+      timers[title] = block
+    end
+    # Keep `configure` off the network.
+    d.instance.define_singleton_method(:detect_os_major_version) { 1 }
+    d.configure(config)
+
+    [d, timers[:out_opensearch_expire_credentials]]
+  end
+
   def stub_opensearch_info(url="http://localhost:9200/", version="1.2.2")
     body ="{\"version\":{\"number\":\"#{version}\", \"distribution\":\"opensearch\"},\"tagline\":\"The OpenSearch Project: https://opensearch.org/\"}"
     stub_request(:get, url).to_return({:status => 200, :body => body, :headers => { 'Content-Type' => 'json' } })
@@ -4153,5 +4179,44 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     d = driver(config)
     d.run
     assert { d.logs.any?(/\[error\]: Failed to get new AWS credentials: No valid AWS credentials found.\n/) }
+  end
+
+  test 'a failed credential refresh keeps the current credentials and client' do
+    d, refresh = driver_with_captured_credential_refresh
+    instance = d.instance
+    credentials = instance.instance_variable_get(:@_aws_credentials)
+    instance.instance_variable_set(:@_os, :cached_client)
+    flexmock(instance).should_receive(:aws_credentials)
+      .and_raise(::RuntimeError.new("No valid AWS credentials found."))
+
+    refresh.call
+
+    assert_same credentials, instance.instance_variable_get(:@_aws_credentials)
+    assert_equal :cached_client, instance.instance_variable_get(:@_os)
+    assert { d.logs.any?(/Failed to get new AWS credentials: No valid AWS credentials found./) }
+  end
+
+  # The refresh shares @_os with the flush threads, so it has to use their lock
+  # instead of one of its own.
+  test 'a credential refresh swaps the credentials under the client lock' do
+    d, refresh = driver_with_captured_credential_refresh
+    instance = d.instance
+    new_credentials = Aws::Credentials.new('NEW_KEY', 'NEW_SECRET')
+    flexmock(instance).should_receive(:aws_credentials).and_return(new_credentials)
+    instance.instance_variable_set(:@_os, :cached_client)
+
+    # Records what the plugin had done by the time it left the lock.
+    seen = []
+    fake_lock = Object.new
+    fake_lock.define_singleton_method(:synchronize) do |&block|
+      block.call
+      seen << [instance.instance_variable_get(:@_aws_credentials),
+               instance.instance_variable_get(:@_os)]
+    end
+    instance.instance_variable_set(:@client_mutex, fake_lock)
+
+    refresh.call
+
+    assert_equal [[new_credentials, nil]], seen
   end
 end
