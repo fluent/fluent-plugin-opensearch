@@ -322,6 +322,21 @@ class OpenSearchInputTest < Test::Unit::TestCase
     assert_equal 'raw.opensearch', instance.tag
   end
 
+  def test_hosts_is_masked_in_the_configuration_dump
+    config = Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+        'hosts' => 'https://john:passw0rd@host1:443/elastic/',
+        'tag' => 'raw.opensearch',
+        'check_connection' => 'false',
+      }, [])
+    driver(config)
+
+    dump = config.to_masked_element.to_s
+    assert_false dump.include?('passw0rd')
+    assert_true dump.include?('hosts xxxxxx')
+  end
+
   def test_hosts_list_with_escape_placeholders
     config = %{
       hosts    https://%{j+hn}:%{passw@rd}@host1:443/elastic/,http://host2
