@@ -2,6 +2,11 @@
 
 ### [Unreleased]
 
+### 1.1.8
+ - `out_opensearch`: limit what a host placeholder can expand to (#192)
+ - `out_opensearch`: escape a `customize_template` value inside a string (#194)
+ - `out_opensearch`: lock the client cache against flush threads (#195)
+
 ### 1.1.7
  - test: remove duplicate keys from bulk response fixtures (#190)
  - out\_opensearch: keep AWS credential providers refreshable to fix expired SigV4 tokens with assume\_role\_arn (#188)
