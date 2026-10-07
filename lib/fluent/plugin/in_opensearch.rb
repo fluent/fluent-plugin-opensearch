@@ -51,7 +51,9 @@ module Fluent::Plugin
     config_param :password, :string, :default => nil, :secret => true
     config_param :path, :string, :default => nil
     config_param :scheme, :enum, :list => [:https, :http], :default => :http
-    config_param :hosts, :string, :default => nil
+    # `hosts` accepts "https://user:password@host", so it is masked in the
+    # configuration dump like `password` is.
+    config_param :hosts, :string, :default => nil, :secret => true
     config_param :index_name, :string, :default => "fluentd"
     config_param :parse_timestamp, :bool, :default => false
     config_param :timestamp_key_format, :string, :default => nil
