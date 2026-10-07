@@ -1241,6 +1241,12 @@ records = {key1: "value1", key2: "value2"}
 </match>
 ```
 
+#### host and hosts
+
+`host` and `hosts` take placeholders too, for example `hosts https://logs-${tag}.example.com:9201/os`. A value may only fill in the part of a host name that the placeholder stands for, and how much it may fill in depends on the names that you write after the placeholder. `logs-${tag}.example.com` lets a value add a sub domain of `example.com`, such as `nginx.access`. `logs-${tag}.com` lets a value fill in one name only, because a single name fixes the top level domain and nothing else: the name that decides who owns the domain would still come from the value. A value that does not fit raises `UnrecoverableRequestFailure`.
+
+**Note**: the configured `user`, `password` and `custom_headers` are sent to whichever host the value picks. So write a domain that you control, where nobody else can create a sub domain. A shared domain such as `amazonaws.com` is not enough. Without such a domain, let only senders that you trust set the placeholder value.
+
 ## Multi workers
 
 Since Fluentd v0.14, multi workers feature had been implemented to increase throughput with multiple processes. This feature allows Fluentd processes to use one or more CPUs. This feature will be enabled by the following system configuration:
