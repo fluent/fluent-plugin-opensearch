@@ -20,6 +20,7 @@ module Fluent::Plugin
       super
 
       @data_stream_template_name = "#{@data_stream_name}_template" if @data_stream_template_name.nil?
+      @id_key_accessor = record_accessor_create(@id_key) if @id_key
 
       # ref. https://opensearch.org/docs/latest/opensearch/data-streams/
       unless placeholder?(:data_stream_name_placeholder, @data_stream_name)
@@ -187,10 +188,14 @@ module Fluent::Plugin
           if @include_tag_key
             record[@tag_key] = tag
           end
+          meta = {}
+          if @id_key_accessor && (id = @id_key_accessor.call(record))
+            meta["_id".freeze] = id
+          end
           if @remove_keys
             @remove_keys.each { |key| record.delete(key) }
           end
-          bulk_message = append_record_to_messages(CREATE_OP, {}, headers, record, bulk_message)
+          bulk_message = append_record_to_messages(CREATE_OP, meta, headers, record, bulk_message)
           records << [time, record]
         rescue => e
           emit_error_label_event do

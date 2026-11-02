@@ -743,6 +743,68 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('remove_me'))
   end
 
+  def test_record_with_id_key
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => 'request_id'
+    })
+    record = {
+      'message' => 'Sample Record',
+      'request_id' => '42'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert_equal({'_id' => '42'}, index_cmds[0]['create'])
+    assert_equal('42', index_cmds[1]['request_id'])
+  end
+
+  def test_record_with_nested_id_key_and_remove_keys
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => 'nested.request_id',
+      'remove_keys' => 'nested'
+    })
+    record = {
+      'message' => 'Sample Record',
+      'nested' => {'request_id' => '42'}
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert_equal({'_id' => '42'}, index_cmds[0]['create'])
+    assert(!index_cmds[1].has_key?('nested'))
+  end
+
+  def test_record_without_id_key_value
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => 'request_id'
+    })
+    record = {
+      'message' => 'Sample Record'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert_equal({}, index_cmds[0]['create'])
+  end
+
   def test_bulk_error_logs_only_failed_items
     stub_default
     stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
