@@ -1390,6 +1390,17 @@ You can specify an existing matching index template for the data stream. If not 
 
 Default value is `data_stream_name`.
 
+### id_key
+
+[id_key](#id_key) is also supported. The value of the key is sent as the document `_id`, and records without the key (or with an empty string) still get an auto-generated ID.
+
+OpenSearch fails the whole bulk request for some explicit IDs, so these records are sent to the `@ERROR` label instead of being indexed:
+
+* objects and arrays
+* values longer than 512 bytes (UTF-8)
+
+Because data streams only accept the `create` operation, a record whose `_id` already exists returns `409`. This is counted as a duplicate, not as a failure, so a retried chunk does not report already indexed records as errors.
+
 ## Configuration - AWS OpenSearch Service
 
 This settings are effective for AWS OpenSearch Service that is successor of AWS Elasticsearch service.
