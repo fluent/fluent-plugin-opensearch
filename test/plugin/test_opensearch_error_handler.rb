@@ -235,21 +235,21 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     def test_400_responses_reason_log
       records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
       response = parse_response(%({
-      "took" : 0,
-      "errors" : true,
-      "items" : [
-        {
-          "create" : {
-            "_index" : "foo",
-            "status" : 400,
-            "error" : {
-              "type"  : "mapper_parsing_exception",
-              "reason" : "failed to parse"
+        "took" : 0,
+        "errors" : true,
+        "items" : [
+          {
+            "create" : {
+              "_index" : "foo",
+              "status" : 400,
+              "error" : {
+                "type"  : "mapper_parsing_exception",
+                "reason" : "failed to parse"
+              }
             }
           }
-        }
-      ]
-     }))
+        ]
+      }))
       chunk = MockChunk.new(records)
       dummy_extracted_values = []
       @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
@@ -369,6 +369,42 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     assert_raise(Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError) do
       @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
     end
+  end
+
+  def test_out_shard_exhaustion_responses
+    records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
+    response = parse_response(%({
+      "took" : 0,
+      "errors" : true,
+      "items" : [
+        {
+          "create" : {
+            "_index" : "foo",
+            "status" : 400,
+            "error" : {
+              "type"  : "illegal_argument_exception",
+              "reason" : "Validation Failed: 1: this action would add [4] total shards, but this cluster currently has [998]/[1000] maximum shards open;"
+            }
+          }
+        }
+      ]
+    }))
+
+    begin
+      failed = false
+      chunk = MockChunk.new(records)
+      dummy_extracted_values = []
+      @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
+    rescue Fluent::Plugin::OpenSearchErrorHandler::OpenSearchRequestAbortError, Fluent::Plugin::OpenSearchOutput::RetryStreamError => e
+      failed = true
+      records = [].tap do |records|
+        next unless e.respond_to?(:retry_stream)
+        e.retry_stream.each {|time, record| records << record}
+      end
+      # should retry chunk when unrecoverable error is not thrown
+      assert_equal(1, records.length)
+    end
+    assert_true failed
   end
 
   def test_es_rejected_execution_exception_responses_as_not_error
