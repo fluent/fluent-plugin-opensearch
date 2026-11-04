@@ -15,11 +15,14 @@ module Fluent::Plugin
 
     INVALID_START_CHRACTERS = ["-", "_", "+", "."]
     INVALID_CHARACTERS = ["\\", "/", "*", "?", "\"", "<", ">", "|", " ", ",", "#", ":"]
+    # OpenSearch rejects longer `_id` values for the whole bulk request.
+    MAX_ID_BYTES = 512
 
     def configure(conf)
       super
 
       @data_stream_template_name = "#{@data_stream_name}_template" if @data_stream_template_name.nil?
+      @id_key_accessor = record_accessor_create(@id_key) if @id_key
 
       # ref. https://opensearch.org/docs/latest/opensearch/data-streams/
       unless placeholder?(:data_stream_name_placeholder, @data_stream_name)
@@ -187,13 +190,18 @@ module Fluent::Plugin
           if @include_tag_key
             record[@tag_key] = tag
           end
+          meta = {}
+          if @id_key_accessor
+            id = @id_key_accessor.call(record)
+            meta["_id".freeze] = validate_document_id(id) unless id.nil? || id == ""
+          end
           if @remove_keys
             @remove_keys.each { |key| record.delete(key) }
           end
-          bulk_message = append_record_to_messages(CREATE_OP, {}, headers, record, bulk_message)
+          bulk_message = append_record_to_messages(CREATE_OP, meta, headers, record, bulk_message)
           records << [time, record]
         rescue => e
-          emit_error_label_event do
+          if emit_error_label_event?
             router.emit_error_event(tag, time, record, e)
           end
         end
@@ -208,12 +216,14 @@ module Fluent::Plugin
       begin
         response = client(host).bulk(params)
         if response['errors']
-          failed_count = response['items'].count { |item| item.values.first['status'] >= 300 }
-          log.error "Could not bulk insert to Data Stream: #{data_stream_name}, #{failed_count} item(s) failed."
+          failed_count = response['items'].count { |item| failed_item?(item) }
+          duplicate_count = response['items'].count { |item| item.values.first['status'] == 409 }
+          log.debug "Skipped #{duplicate_count} duplicate item(s) in Data Stream: #{data_stream_name}" if duplicate_count > 0
+          log.error "Could not bulk insert to Data Stream: #{data_stream_name}, #{failed_count} item(s) failed." if failed_count > 0
           if emit_error_label_event?
             response['items'].each_with_index do |item, idx|
+              next unless failed_item?(item)
               status = item.values.first['status']
-              next unless status >= 300
               time, record = records[idx]
               next if record.nil?
               error_info = item.values.first['error']
@@ -224,6 +234,26 @@ module Fluent::Plugin
       rescue => e
         raise RecoverableRequestFailure, "could not push logs to OpenSearch cluster (#{data_stream_name}): #{e.message}"
       end
+    end
+
+    # Data streams only accept `create`, so a 409 means a document with the same `_id` was
+    # already indexed (for example by an earlier try of the same chunk). Like the regular
+    # output, count it as a duplicate rather than a failure.
+    def failed_item?(item)
+      status = item.values.first['status']
+      status >= 300 && status != 409
+    end
+
+    # Rejects `_id` values that OpenSearch fails for the whole bulk request, so one bad record
+    # cannot hold back the rest of the chunk. The record goes to @ERROR instead.
+    def validate_document_id(id)
+      if id.is_a?(Hash) || id.is_a?(Array)
+        raise ArgumentError, "'#{@id_key}' must not be an object or an array to be used as _id"
+      end
+      if id.to_s.bytesize > MAX_ID_BYTES
+        raise ArgumentError, "'#{@id_key}' is longer than #{MAX_ID_BYTES} bytes and cannot be used as _id"
+      end
+      id
     end
 
     def append_record_to_messages(op, meta, header, record, msgs)

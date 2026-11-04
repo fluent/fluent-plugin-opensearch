@@ -743,6 +743,133 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('remove_me'))
   end
 
+  def test_record_with_id_key
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => 'request_id'
+    })
+    record = {
+      'message' => 'Sample Record',
+      'request_id' => '42'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert_equal({'_id' => '42'}, index_cmds[0]['create'])
+    assert_equal('42', index_cmds[1]['request_id'])
+  end
+
+  def test_record_with_nested_id_key_and_remove_keys
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => 'nested.request_id',
+      'remove_keys' => 'nested'
+    })
+    record = {
+      'message' => 'Sample Record',
+      'nested' => {'request_id' => '42'}
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert_equal({'_id' => '42'}, index_cmds[0]['create'])
+    assert(!index_cmds[1].has_key?('nested'))
+  end
+
+  def test_record_without_id_key_value
+    stub_default
+    stub_bulk_feed
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => 'request_id'
+    })
+    record = {
+      'message' => 'Sample Record'
+    }
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(record)
+    end
+    assert_equal({}, index_cmds[0]['create'])
+  end
+
+  def id_key_conf(id_key)
+    config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'id_key' => id_key
+    })
+  end
+
+  def test_unreadable_nested_id_key_is_emitted_as_error_event
+    stub_default
+    stub_bulk_feed
+    driver(id_key_conf('nested.request_id')).run(default_tag: 'test') do
+      driver.feed({'message' => 'good', 'nested' => {'request_id' => '42'}})
+      driver.feed({'message' => 'bad', 'nested' => 'plain-string'})
+    end
+    assert_equal 1, @bulk_records
+    assert_equal({'_id' => '42'}, index_cmds[0]['create'])
+    assert_equal 1, driver.error_events.size
+    assert_equal 'bad', driver.error_events[0][2]['message']
+  end
+
+  def test_invalid_id_values_do_not_block_valid_records
+    stub_default
+    stub_bulk_feed
+    driver(id_key_conf('request_id')).run(default_tag: 'test') do
+      driver.feed({'message' => 'valid', 'request_id' => '1'})
+      driver.feed({'message' => 'hash', 'request_id' => {'a' => 1}})
+      driver.feed({'message' => 'array', 'request_id' => [1]})
+      driver.feed({'message' => 'too long', 'request_id' => 'a' * 513})
+      driver.feed({'message' => 'longest', 'request_id' => "\u00e9" * 256})
+      driver.feed({'message' => 'empty', 'request_id' => ''})
+    end
+    assert_equal 3, @bulk_records
+    assert_equal({'_id' => '1'}, index_cmds[0]['create'])
+    assert_equal({'_id' => "\u00e9" * 256}, index_cmds[2]['create'])
+    assert_equal({}, index_cmds[4]['create'])
+    assert_equal 'empty', index_cmds[5]['message']
+    assert_equal ['hash', 'array', 'too long'], driver.error_events.map { |e| e[2]['message'] }
+    assert(driver.error_events.all? { |e| e[3].message.include?("'request_id'") })
+  end
+
+  def test_duplicate_id_conflict_is_not_reported_as_failure
+    stub_default
+    stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
+      status: 200,
+      body: {
+        'errors' => true,
+        'items' => [
+          { 'create' => { 'status' => 201, '_index' => 'foo' } },
+          { 'create' => { 'status' => 409, '_index' => 'foo',
+                          'error' => { 'type' => 'version_conflict_engine_exception' } } }
+        ]
+      }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+    driver(id_key_conf('request_id')).run(default_tag: 'test') do
+      driver.feed({'message' => 'new', 'request_id' => '1'})
+      driver.feed({'message' => 'retried', 'request_id' => '2'})
+    end
+    assert_nil driver.logs.find { |l| l.include?("Could not bulk insert") }
+    assert_equal [], driver.error_events
+  end
+
   def test_bulk_error_logs_only_failed_items
     stub_default
     stub_request(:post, "http://localhost:9200/foo/_bulk").to_return(
