@@ -73,6 +73,7 @@ module Fluent::Plugin
     config_param :ssl_verify , :bool, :default => true
     config_param :client_key, :string, :default => nil
     config_param :client_cert, :string, :default => nil
+    config_param :client_chain, :string, :default => nil
     config_param :client_key_pass, :string, :default => nil, :secret => true
     config_param :ca_file, :string, :default => nil
     config_param :ssl_version, :enum, list: [:SSLv23, :TLSv1, :TLSv1_1, :TLSv1_2], :default => :TLSv1_2
@@ -149,7 +150,7 @@ module Fluent::Plugin
     def backend_options
       case @http_backend
       when :excon
-        { client_key: @client_key, client_cert: @client_cert, client_key_pass: @client_key_pass }
+        { client_key: @client_key, client_cert: @client_cert, client_key_pass: @client_key_pass, client_chain: @client_chain }
       when :typhoeus
         require 'typhoeus'
         { sslkey: @client_key, sslcert: @client_cert, keypasswd: @client_key_pass }

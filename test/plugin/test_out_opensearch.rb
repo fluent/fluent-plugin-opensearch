@@ -320,6 +320,7 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     end
     assert_nil instance.client_key
     assert_nil instance.client_cert
+    assert_nil instance.client_chain
     assert_nil instance.client_key_pass
     assert_false instance.with_transporter_log
     assert_equal "_doc", default_type_name
@@ -335,6 +336,22 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_true instance.http_backend_excon_nonblock
 
     assert_nil instance.endpoint
+  end
+
+  test 'configure client_chain for excon' do
+    config = %{
+      client_cert /path/to/client.crt
+      client_key /path/to/client.key
+      client_chain /path/to/intermediate.crt
+    }
+    instance = driver(config).instance
+    assert_equal '/path/to/intermediate.crt', instance.client_chain
+    assert_equal({ client_key: '/path/to/client.key',
+                   client_cert: '/path/to/client.crt',
+                   client_key_pass: nil,
+                   nonblock: true,
+                   client_chain: '/path/to/intermediate.crt' },
+                 instance.backend_options)
   end
 
   test 'configure endpoint section' do
