@@ -140,6 +140,7 @@ module Fluent::Plugin
     config_param :ssl_verify , :bool, :default => true
     config_param :client_key, :string, :default => nil
     config_param :client_cert, :string, :default => nil
+    config_param :client_chain, :string, :default => nil
     config_param :client_key_pass, :string, :default => nil, :secret => true
     config_param :ca_file, :string, :default => nil
     config_param :remove_keys, :string, :default => nil
@@ -566,7 +567,9 @@ module Fluent::Plugin
     def backend_options
       case @http_backend
       when :excon
-        { client_key: @client_key, client_cert: @client_cert, client_key_pass: @client_key_pass, nonblock: @http_backend_excon_nonblock }
+        options = { client_key: @client_key, client_cert: @client_cert, client_key_pass: @client_key_pass, nonblock: @http_backend_excon_nonblock }
+        options[:client_chain] = @client_chain if @client_chain
+        options
       when :typhoeus
         require 'faraday/typhoeus'
         { sslkey: @client_key, sslcert: @client_cert, keypasswd: @client_key_pass }
