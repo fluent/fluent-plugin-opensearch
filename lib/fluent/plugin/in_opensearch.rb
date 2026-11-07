@@ -150,7 +150,9 @@ module Fluent::Plugin
     def backend_options
       case @http_backend
       when :excon
-        { client_key: @client_key, client_cert: @client_cert, client_key_pass: @client_key_pass, client_chain: @client_chain }
+        options = { client_key: @client_key, client_cert: @client_cert, client_key_pass: @client_key_pass }
+        options[:client_chain] = @client_chain if @client_chain
+        options
       when :typhoeus
         require 'typhoeus'
         { sslkey: @client_key, sslcert: @client_cert, keypasswd: @client_key_pass }

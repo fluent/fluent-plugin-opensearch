@@ -321,6 +321,7 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_nil instance.client_key
     assert_nil instance.client_cert
     assert_nil instance.client_chain
+    assert_false instance.backend_options.key?(:client_chain)
     assert_nil instance.client_key_pass
     assert_false instance.with_transporter_log
     assert_equal "_doc", default_type_name
