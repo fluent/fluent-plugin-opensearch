@@ -227,6 +227,11 @@ client_key /path/to/your/private/key
 client_key_pass password
 ```
 
+With the default `excon` backend, only the first certificate of `client_cert` is sent. If your client certificate is issued by an intermediate CA that the server does not know, put the intermediate certificates in a separate file and set `client_chain`. The `typhoeus` backend sends the whole chain from `client_cert` and ignores this parameter.
+```
+client_chain /path/to/your/intermediate/certs
+```
+
 If you want to configure SSL/TLS version, you can specify ssl\_version parameter.
 ```
 ssl_version TLSv1_2 # or [SSLv23, TLSv1, TLSv1_1]

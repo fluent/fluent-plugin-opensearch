@@ -213,6 +213,8 @@ class OpenSearchInputTest < Test::Unit::TestCase
     assert_true instance.repeat
     assert_nil instance.client_key
     assert_nil instance.client_cert
+    assert_nil instance.client_chain
+    assert_false instance.backend_options.key?(:client_chain)
     assert_nil instance.client_key_pass
     assert_nil instance.ca_file
     assert_false instance.with_transporter_log
@@ -222,6 +224,23 @@ class OpenSearchInputTest < Test::Unit::TestCase
     assert_equal ['_index', '_type', '_id'], instance.docinfo_fields
     assert_equal '@metadata', instance.docinfo_target
     assert_false instance.docinfo
+  end
+
+  def test_configure_client_chain_for_excon
+    config = %{
+      tag raw.opensearch
+      check_connection false
+      client_cert /path/to/client.crt
+      client_key /path/to/client.key
+      client_chain /path/to/intermediate.crt
+    }
+    instance = driver(config).instance
+    assert_equal '/path/to/intermediate.crt', instance.client_chain
+    assert_equal({ client_key: '/path/to/client.key',
+                   client_cert: '/path/to/client.crt',
+                   client_key_pass: nil,
+                   client_chain: '/path/to/intermediate.crt' },
+                 instance.backend_options)
   end
 
   def test_single_host_params_and_defaults
