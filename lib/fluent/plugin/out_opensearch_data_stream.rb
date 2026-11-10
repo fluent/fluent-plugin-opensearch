@@ -213,6 +213,7 @@ module Fluent::Plugin
         index: data_stream_name,
         body: bulk_message
       }
+      params[:pipeline] = extract_placeholders(@pipeline, chunk) if @pipeline
       begin
         response = client(host).bulk(params)
         if response['errors']

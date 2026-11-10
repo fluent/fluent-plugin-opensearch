@@ -743,6 +743,25 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert(!index_cmds[1].has_key?('remove_me'))
   end
 
+  data("fixed"       => ["mypipeline", "mypipeline"],
+       "placeholder" => ["pipeline-${tag}", "pipeline-test"])
+  def test_record_with_pipeline(data)
+    pipeline, expected = data
+    stub_default
+    bulk = stub_request(:post, "http://localhost:9200/foo/_bulk").with(query: {"pipeline" => expected})
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'pipeline' => pipeline
+    })
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    assert_requested(bulk)
+  end
+
   def test_record_with_id_key
     stub_default
     stub_bulk_feed
