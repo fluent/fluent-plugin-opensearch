@@ -2055,6 +2055,21 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     end
   end
 
+  data("port"   => ["os.example.com:9200", "os.example.com:9201", :port, 9201],
+       "scheme" => ["http://os.example.com:9200", "https://os.example.com:9200", :scheme, "https"],
+       "path"   => ["http://os.example.com:9200/a", "http://os.example.com:9200/b", :path, "/b"])
+  def test_client_is_rebuilt_when_only_a_part_other_than_the_host_name_changes(data)
+    first, second, key, expected = data
+    instance = driver.instance
+
+    client = instance.client(first)
+    assert_same(client, instance.client(first))
+
+    rebuilt = instance.client(second)
+    assert_not_same(client, rebuilt)
+    assert_equal(expected, rebuilt.transport.transport.hosts.first[key])
+  end
+
   def test_password_is_required_if_specify_user
     config = %{
       user john

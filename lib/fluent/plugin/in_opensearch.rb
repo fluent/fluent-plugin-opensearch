@@ -296,7 +296,8 @@ module Fluent::Plugin
       @_os = nil unless is_existing_connection(connection_options[:hosts])
 
       @_os ||= begin
-        @current_config = connection_options[:hosts].clone
+        # The client normalizes the host hashes it gets, so keep copies.
+        @current_config = connection_options[:hosts].map(&:dup)
         adapter_conf = lambda {|f| f.adapter @http_backend, @backend_options }
         local_reload_connections = @reload_connections
         if local_reload_connections && @reload_after > DEFAULT_RELOAD_AFTER
@@ -331,15 +332,10 @@ module Fluent::Plugin
       # check if the host provided match the current connection
       return false if @_os.nil?
       return false if @current_config.nil?
-      return false if host.length != @current_config.length
 
-      for i in 0...host.length
-        if !host[i][:host].eql? @current_config[i][:host] || host[i][:port] != @current_config[i][:port]
-          return false
-        end
-      end
-
-      return true
+      # Compare every part of each host (port, scheme, path, credentials), not
+      # only its name: a placeholder may expand to the same name on another port.
+      host == @current_config
     end
 
     def update_retry_state(error=nil)
