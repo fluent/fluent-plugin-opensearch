@@ -2555,6 +2555,26 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal(my_id_value, index_cmds_all_requests[0].first['update']['_id'])
   end
 
+  def test_writes_to_affinity_target_index_with_logstash_prefix_placeholder
+    driver.configure("target_index_affinity true
+                      logstash_format true
+                      logstash_prefix ${tag}
+                      id_key my_id
+                      write_operation update")
+
+    my_id_value = "3408a2c8eecd4fbfb82e45012b54fa82"
+    ids = [my_id_value]
+    body = %({"hits": {"hits": [{"_index": "test-2021.04.28", "_id": "#{my_id_value}"}]}})
+    stub_opensearch
+    stub_opensearch_info
+    search = stub_opensearch_affinity_target_index_search_with_body("http://localhost:9200/test-*/_search", ids, body)
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => my_id_value))
+    end
+    assert_requested(search)
+    assert_equal('test-2021.04.28', index_cmds.first['update']['_index'])
+  end
+
   class PipelinePlaceholdersTest < self
     def test_writes_to_default_index_with_pipeline_tag_placeholder
       pipeline = "fluentd-${tag}"

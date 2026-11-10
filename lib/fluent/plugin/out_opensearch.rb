@@ -1048,8 +1048,10 @@ module Fluent::Plugin
           end
         end
         log.debug("Find affinity target_indices by quering on OpenSearch (write_operation #{@write_operation}) for ids: #{ids.to_a}")
+        # Search the indices this chunk is written to, with the placeholders
+        # of logstash_prefix filled in as process_message does.
         options = {
-          :index => "#{logstash_prefix}#{@logstash_prefix_separator}*",
+          :index => "#{extract_placeholders(@logstash_prefix, chunk)}#{@logstash_prefix_separator}*",
         }
         query = {
           'query' => { 'ids' => { 'values' => ids.to_a } },
