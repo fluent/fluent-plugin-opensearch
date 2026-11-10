@@ -688,7 +688,8 @@ module Fluent::Plugin
 
       @_os ||= begin
         @compressable_connection = compress_connection
-        @current_config = connection_options[:hosts].clone
+        # The client normalizes the host hashes it gets, so keep copies.
+        @current_config = connection_options[:hosts].map(&:dup)
         adapter_conf = if @endpoint
                          lambda do |f|
                            f.request(
@@ -1272,15 +1273,10 @@ module Fluent::Plugin
       # check if the host provided match the current connection
       return false if @_os.nil?
       return false if @current_config.nil?
-      return false if host.length != @current_config.length
 
-      for i in 0...host.length
-        if !host[i][:host].eql? @current_config[i][:host] || host[i][:port] != @current_config[i][:port]
-          return false
-        end
-      end
-
-      return true
+      # Compare every part of each host (port, scheme, path, credentials), not
+      # only its name: a placeholder may expand to the same name on another port.
+      host == @current_config
     end
   end
 end

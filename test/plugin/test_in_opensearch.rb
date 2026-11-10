@@ -385,6 +385,17 @@ class OpenSearchInputTest < Test::Unit::TestCase
     assert_equal 'raw.opensearch', instance.tag
   end
 
+  def test_client_is_rebuilt_when_only_the_port_changes
+    instance = driver(CONFIG).instance
+
+    client = instance.client("localhost:9200")
+    assert_same(client, instance.client("localhost:9200"))
+
+    rebuilt = instance.client("localhost:9201")
+    assert_not_same(client, rebuilt)
+    assert_equal(9201, rebuilt.transport.transport.hosts.first[:port])
+  end
+
   def test_emit
     stub_request(@http_method, "http://localhost:9200/fluentd/_search?scroll=1m&size=1000").
       with(body: "{\"sort\":[\"_doc\"]}").
