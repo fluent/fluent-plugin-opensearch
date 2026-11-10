@@ -154,6 +154,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
           end
           if unrecoverable_record_error?(type)
             if emit_error_label_event?
+              reason = item[write_operation]['error']['reason']
               @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
             end
             next
@@ -169,7 +170,6 @@ class Fluent::Plugin::OpenSearchErrorHandler
           end
           next
         end
-        stats[type] += 1
       end
     end
     @plugin.log.on_debug do
