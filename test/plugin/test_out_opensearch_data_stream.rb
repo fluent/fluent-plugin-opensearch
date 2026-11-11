@@ -762,6 +762,56 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert_requested(bulk)
   end
 
+  def test_record_with_empty_pipeline
+    stub_default
+    bulk = stub_request(:post, "http://localhost:9200/foo/_bulk")
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'pipeline' => ''
+    })
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    assert_requested(bulk)
+  end
+
+  def test_record_with_pipeline_placeholder_expanded_to_empty
+    stub_default
+    bulk = stub_request(:post, "http://localhost:9200/foo/_bulk")
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'pipeline' => '${pipeline_id}'
+    }, [config_element('buffer', 'tag,pipeline_id', {})])
+    driver(conf).run(default_tag: 'test') do
+      driver.feed(sample_record)
+    end
+    assert_requested(bulk)
+  end
+
+  def test_pipeline_is_expanded_before_records_are_processed
+    stub_default
+    bulk = stub_request(:post, %r{http://localhost:9200/foo/_bulk})
+    conf = config_element(
+      'ROOT', '', {
+      '@type' => OPENSEARCH_DATA_STREAM_TYPE,
+      'data_stream_name' => 'foo',
+      'data_stream_template_name' => 'foo_tpl',
+      'pipeline' => 'pipe-${tag}',
+      'id_key' => 'req_id'
+    }, [config_element('buffer', 'tag', {'disable_chunk_backup' => 'true'})])
+    driver(conf).run(default_tag: '/badtag') do
+      driver.feed({'message' => 'bad', 'req_id' => [1]})
+    end
+    assert_equal [], driver.error_events
+    assert_not_requested(bulk)
+  end
+
   def test_record_with_id_key
     stub_default
     stub_bulk_feed

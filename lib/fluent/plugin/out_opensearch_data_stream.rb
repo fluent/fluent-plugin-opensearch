@@ -156,6 +156,7 @@ module Fluent::Plugin
     def write(chunk)
       data_stream_name = @data_stream_name
       data_stream_template_name = @data_stream_template_name
+      pipeline = extract_placeholders(@pipeline, chunk) if @pipeline
       host = nil
       if @use_placeholder
         host = expand_host_placeholders(chunk)
@@ -213,7 +214,7 @@ module Fluent::Plugin
         index: data_stream_name,
         body: bulk_message
       }
-      params[:pipeline] = extract_placeholders(@pipeline, chunk) if @pipeline
+      params[:pipeline] = pipeline if pipeline && !pipeline.empty?
       begin
         response = client(host).bulk(params)
         if response['errors']
