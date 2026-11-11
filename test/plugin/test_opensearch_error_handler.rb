@@ -294,6 +294,64 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     assert_true(@plugin.error_events[0][:error].respond_to?(:backtrace))
   end
 
+  def test_unrecoverable_record_error_event_includes_reason
+    records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
+    response = parse_response(%({
+      "took" : 0,
+      "errors" : true,
+      "items" : [
+        {
+          "create" : {
+            "_index" : "foo",
+            "status" : 500,
+            "error" : {
+              "type" : "json_parse_exception",
+              "reason" : "Invalid UTF-8 start byte 0x92"
+            }
+          }
+        }
+      ]
+     }))
+    chunk = MockChunk.new(records)
+    dummy_extracted_values = []
+    @handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
+    assert_equal(1, @plugin.error_events.size)
+    assert_equal("500 - json_parse_exception: Invalid UTF-8 start byte 0x92",
+                 @plugin.error_events[0][:error].message)
+  end
+
+  def test_retried_item_is_counted_once_in_the_debug_stats
+    log_device = Fluent::Test::DummyLogDevice.new
+    logger = ServerEngine::DaemonLogger.new(log_device, {:log_level => ServerEngine::DaemonLogger::DEBUG})
+    plugin = TestPlugin.new(Fluent::Log.new(logger))
+    handler = Fluent::Plugin::OpenSearchErrorHandler.new(plugin)
+    records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
+    response = parse_response(%({
+      "took" : 0,
+      "errors" : true,
+      "items" : [
+        {
+          "create" : {
+            "_index" : "foo",
+            "status" : 500,
+            "error" : {
+              "type" : "some unrecognized type",
+              "reason" : "unrecognized error"
+            }
+          }
+        }
+      ]
+     }))
+    chunk = MockChunk.new(records)
+    dummy_extracted_values = []
+    assert_raise(Fluent::Plugin::OpenSearchOutput::RetryStreamError) do
+      handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
+    end
+    stats_line = log_device.logs.find { |line| line.include?("Indexed (op = index)") }
+    assert_not_nil(stats_line)
+    assert_true(stats_line.include?("1 some unrecognized type"), stats_line)
+  end
+
   def test_dlq_400_responses
     records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
     response = parse_response(%({
