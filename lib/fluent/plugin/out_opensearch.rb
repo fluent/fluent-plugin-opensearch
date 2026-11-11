@@ -1047,11 +1047,13 @@ module Fluent::Plugin
             ids << id_key_accessor.call(record)
           end
         end
-        log.debug("Find affinity target_indices by quering on OpenSearch (write_operation #{@write_operation}) for ids: #{ids.to_a}")
         # Search the indices this chunk is written to, with the placeholders
         # of logstash_prefix filled in as process_message does.
+        logstash_prefix = affinity_search_prefix(chunk)
+        return indices if logstash_prefix.nil?
+        log.debug("Find affinity target_indices by quering on OpenSearch (write_operation #{@write_operation}) for ids: #{ids.to_a}")
         options = {
-          :index => "#{extract_placeholders(@logstash_prefix, chunk)}#{@logstash_prefix_separator}*",
+          :index => "#{logstash_prefix}#{@logstash_prefix_separator}*",
         }
         query = {
           'query' => { 'ids' => { 'values' => ids.to_a } },
@@ -1068,6 +1070,34 @@ module Fluent::Plugin
         end
       end
       indices
+    end
+
+    # Characters that OpenSearch reads as part of a multi-target index
+    # expression (",", "*") or rejects in an index name.
+    UNSAFE_INDEX_EXPRESSION_CHARACTERS = /[\\\/*?"<>|,#:\s]/
+
+    # The logstash_prefix to search for affinity target indices, or nil when
+    # a value from the tag or a chunk key would change the meaning of the
+    # index expression: "*" or "," would widen the search beyond the prefix,
+    # and an invalid name would make the search, and so the chunk, fail.
+    # The search is then skipped, as if no document was found.
+    # "*" or "," written in logstash_prefix itself is kept as configured.
+    def affinity_search_prefix(chunk)
+      logstash_prefix = extract_placeholders(@logstash_prefix, chunk)
+      return logstash_prefix if logstash_prefix == @logstash_prefix
+
+      values = []
+      values << chunk.metadata.tag if @logstash_prefix.match?(/\$\{tag(?:\[-?\d+\])?\}/)
+      (chunk.metadata.variables || {}).each do |key, value|
+        values << value if @logstash_prefix.include?("${#{key}}")
+      end
+      unsafe = values.any? { |value| value.to_s.match?(UNSAFE_INDEX_EXPRESSION_CHARACTERS) } ||
+               (logstash_prefix.match?(/\A[_\-+]/) && !@logstash_prefix.match?(/\A[_\-+]/))
+      if unsafe
+        log.debug("Skip the affinity target_indices search, logstash_prefix expands to an unsafe index expression: #{logstash_prefix}")
+        return nil
+      end
+      logstash_prefix
     end
 
     def split_request?(bulk_message, info)

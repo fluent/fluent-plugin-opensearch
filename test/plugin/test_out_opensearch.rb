@@ -2575,6 +2575,50 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal('test-2021.04.28', index_cmds.first['update']['_index'])
   end
 
+  def affinity_tenant_config(logstash_prefix)
+    Fluent::Config::Element.new(
+      'ROOT', '', {
+        '@type' => 'opensearch',
+        'target_index_affinity' => 'true',
+        'logstash_format' => 'true',
+        'logstash_prefix' => logstash_prefix,
+        'target_index_key' => 'destination',
+        'id_key' => 'my_id',
+        'write_operation' => 'upsert',
+      }, [
+        Fluent::Config::Element.new('buffer', 'tag,tenant', {}, [])
+      ])
+  end
+
+  data("wildcard and list" => ["logs-${tenant}", "*,private"],
+       "list with missing index" => ["logs-${tenant}", "nonexistent,x"],
+       "leading underscore" => ["${tenant}", "_x"])
+  def test_skips_affinity_search_for_unsafe_logstash_prefix_value(data)
+    logstash_prefix, tenant = data
+    driver.configure(affinity_tenant_config(logstash_prefix))
+    stub_opensearch
+    stub_opensearch_info
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => 'x1', 'tenant' => tenant, 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_not_requested(:post, %r{/_search})
+    assert_equal(1, index_cmds.count { |cmd| cmd.key?('update') })
+    assert_equal('logs-safe-2021.04.29', index_cmds.first['update']['_index'])
+  end
+
+  def test_affinity_search_keeps_wildcard_written_in_logstash_prefix
+    driver.configure(affinity_tenant_config("logs*-${tenant}"))
+    body = %({"hits": {"hits": [{"_index": "logs1-blue-2021.04.28", "_id": "x1"}]}})
+    stub_opensearch
+    stub_opensearch_info
+    search = stub_opensearch_affinity_target_index_search_with_body("http://localhost:9200/logs*-blue-*/_search", ["x1"], body)
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => 'x1', 'tenant' => 'blue', 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_requested(search)
+    assert_equal('logs1-blue-2021.04.28', index_cmds.first['update']['_index'])
+  end
+
   class PipelinePlaceholdersTest < self
     def test_writes_to_default_index_with_pipeline_tag_placeholder
       pipeline = "fluentd-${tag}"
