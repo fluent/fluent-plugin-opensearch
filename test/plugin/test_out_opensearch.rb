@@ -2570,6 +2570,91 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal(my_id_value, index_cmds_all_requests[0].first['update']['_id'])
   end
 
+  def test_writes_to_affinity_target_index_with_logstash_prefix_placeholder
+    driver.configure("target_index_affinity true
+                      logstash_format true
+                      logstash_prefix ${tag}
+                      id_key my_id
+                      write_operation update")
+
+    my_id_value = "3408a2c8eecd4fbfb82e45012b54fa82"
+    ids = [my_id_value]
+    body = %({"hits": {"hits": [{"_index": "test-2021.04.28", "_id": "#{my_id_value}"}]}})
+    stub_opensearch
+    stub_opensearch_info
+    search = stub_opensearch_affinity_target_index_search_with_body("http://localhost:9200/test-*/_search", ids, body)
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => my_id_value))
+    end
+    assert_requested(search)
+    assert_equal('test-2021.04.28', index_cmds.first['update']['_index'])
+  end
+
+  def affinity_tenant_config(logstash_prefix, separator = nil)
+    params = {
+      '@type' => 'opensearch',
+      'target_index_affinity' => 'true',
+      'logstash_format' => 'true',
+      'logstash_prefix' => logstash_prefix,
+      'target_index_key' => 'destination',
+      'id_key' => 'my_id',
+      'write_operation' => 'upsert',
+    }
+    params['logstash_prefix_separator'] = separator if separator
+    Fluent::Config::Element.new('ROOT', '', params, [
+      Fluent::Config::Element.new('buffer', 'tag,tenant', {}, [])
+    ])
+  end
+
+  data("wildcard and list" => ["logs-${tenant}", "*,private"],
+       "list with missing index" => ["logs-${tenant}", "nonexistent,x"],
+       "leading underscore" => ["${tenant}", "_x"])
+  def test_skips_affinity_search_for_unsafe_logstash_prefix_value(data)
+    logstash_prefix, tenant = data
+    driver.configure(affinity_tenant_config(logstash_prefix))
+    stub_opensearch
+    stub_opensearch_info
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => 'x1', 'tenant' => tenant, 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_not_requested(:post, %r{/_search})
+    assert_equal(1, index_cmds.count { |cmd| cmd.key?('update') })
+    assert_equal('logs-safe-2021.04.29', index_cmds.first['update']['_index'])
+  end
+
+  data("no tenant" => ["${tenant}", "_", "app", nil],
+       "empty tenant" => ["${tenant}", "_", "app", ""],
+       "tag part that does not exist" => ["${tag[1]}", "_", "app", "blue"],
+       "no tenant and an empty separator" => ["${tenant}", "", "app", nil],
+       "value from another placeholder" => ["logs-${tag}", nil, "${tenant}", "*,private"])
+  def test_skips_affinity_search_when_the_expanded_prefix_is_unsafe(data)
+    logstash_prefix, separator, tag, tenant = data
+    driver.configure(affinity_tenant_config(logstash_prefix, separator))
+    stub_opensearch
+    stub_opensearch_info
+    record = sample_record('my_id' => 'x1', 'destination' => 'logs-safe-2021.04.29')
+    record['tenant'] = tenant unless tenant.nil?
+    driver.run(default_tag: tag) do
+      driver.feed(record)
+    end
+    assert_not_requested(:post, %r{/_search})
+    assert_equal(1, index_cmds.count { |cmd| cmd.key?('update') })
+    assert_equal('logs-safe-2021.04.29', index_cmds.first['update']['_index'])
+  end
+
+  def test_affinity_search_keeps_wildcard_written_in_logstash_prefix
+    driver.configure(affinity_tenant_config("logs*-${tenant}"))
+    body = %({"hits": {"hits": [{"_index": "logs1-blue-2021.04.28", "_id": "x1"}]}})
+    stub_opensearch
+    stub_opensearch_info
+    search = stub_opensearch_affinity_target_index_search_with_body("http://localhost:9200/logs*-blue-*/_search", ["x1"], body)
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => 'x1', 'tenant' => 'blue', 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_requested(search)
+    assert_equal('logs1-blue-2021.04.28', index_cmds.first['update']['_index'])
+  end
+
   class PipelinePlaceholdersTest < self
     def test_writes_to_default_index_with_pipeline_tag_placeholder
       pipeline = "fluentd-${tag}"
