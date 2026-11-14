@@ -1077,27 +1077,52 @@ module Fluent::Plugin
     UNSAFE_INDEX_EXPRESSION_CHARACTERS = /[\\\/*?"<>|,#:\s]/
 
     # The logstash_prefix to search for affinity target indices, or nil when
-    # a value from the tag or a chunk key would change the meaning of the
-    # index expression: "*" or "," would widen the search beyond the prefix,
-    # and an invalid name would make the search, and so the chunk, fail.
-    # The search is then skipped, as if no document was found.
+    # the placeholders change the meaning of the index expression: an added
+    # "*" or "," would widen the search beyond the prefix, and an invalid
+    # name would make the search, and so the chunk, fail. The search is then
+    # skipped, as if no document was found.
+    #
+    # The configured and the expanded prefix are compared with the separator
+    # and without the trailing "*", so a value that comes in through another
+    # placeholder, or an empty value, is also caught. Each character is
+    # counted separately, because a strftime format like "%#p" drops its "#".
     # "*" or "," written in logstash_prefix itself is kept as configured.
     def affinity_search_prefix(chunk)
       logstash_prefix = extract_placeholders(@logstash_prefix, chunk)
       return logstash_prefix if logstash_prefix == @logstash_prefix
 
-      values = []
-      values << chunk.metadata.tag if @logstash_prefix.match?(/\$\{tag(?:\[-?\d+\])?\}/)
-      (chunk.metadata.variables || {}).each do |key, value|
-        values << value if @logstash_prefix.include?("${#{key}}")
-      end
-      unsafe = values.any? { |value| value.to_s.match?(UNSAFE_INDEX_EXPRESSION_CHARACTERS) } ||
-               (logstash_prefix.match?(/\A[_\-+]/) && !@logstash_prefix.match?(/\A[_\-+]/))
-      if unsafe
-        log.debug("Skip the affinity target_indices search, logstash_prefix expands to an unsafe index expression: #{logstash_prefix}")
+      configured = "#{@logstash_prefix}#{@logstash_prefix_separator}"
+      expanded = "#{logstash_prefix}#{@logstash_prefix_separator}"
+      if unsafe_index_expression_added?(configured, expanded)
+        log.debug("Skip the affinity target_indices search, logstash_prefix expands to an unsafe index expression: #{expanded}*")
         return nil
       end
       logstash_prefix
+    end
+
+    def unsafe_index_expression_added?(configured, expanded)
+      before = count_unsafe_index_expression_characters(configured)
+      after = count_unsafe_index_expression_characters(expanded)
+      return true if after.any? { |char, count| count > before[char] }
+
+      configured_targets = index_expression_targets(configured)
+      index_expression_targets(expanded).each_with_index.any? do |target, i|
+        invalid_index_expression_target?(target) && !invalid_index_expression_target?(configured_targets[i].to_s)
+      end
+    end
+
+    def count_unsafe_index_expression_characters(expression)
+      expression.scan(UNSAFE_INDEX_EXPRESSION_CHARACTERS).each_with_object(Hash.new(0)) { |char, counts| counts[char] += 1 }
+    end
+
+    # "".split(",", -1) returns [], so an empty expression is one empty target.
+    def index_expression_targets(expression)
+      targets = expression.split(",", -1)
+      targets.empty? ? [""] : targets
+    end
+
+    def invalid_index_expression_target?(target)
+      target.empty? || target.match?(/\A[_\-+]/)
     end
 
     def split_request?(bulk_message, info)

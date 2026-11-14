@@ -2575,19 +2575,20 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal('test-2021.04.28', index_cmds.first['update']['_index'])
   end
 
-  def affinity_tenant_config(logstash_prefix)
-    Fluent::Config::Element.new(
-      'ROOT', '', {
-        '@type' => 'opensearch',
-        'target_index_affinity' => 'true',
-        'logstash_format' => 'true',
-        'logstash_prefix' => logstash_prefix,
-        'target_index_key' => 'destination',
-        'id_key' => 'my_id',
-        'write_operation' => 'upsert',
-      }, [
-        Fluent::Config::Element.new('buffer', 'tag,tenant', {}, [])
-      ])
+  def affinity_tenant_config(logstash_prefix, separator = nil)
+    params = {
+      '@type' => 'opensearch',
+      'target_index_affinity' => 'true',
+      'logstash_format' => 'true',
+      'logstash_prefix' => logstash_prefix,
+      'target_index_key' => 'destination',
+      'id_key' => 'my_id',
+      'write_operation' => 'upsert',
+    }
+    params['logstash_prefix_separator'] = separator if separator
+    Fluent::Config::Element.new('ROOT', '', params, [
+      Fluent::Config::Element.new('buffer', 'tag,tenant', {}, [])
+    ])
   end
 
   data("wildcard and list" => ["logs-${tenant}", "*,private"],
@@ -2600,6 +2601,26 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     stub_opensearch_info
     driver.run(default_tag: 'test') do
       driver.feed(sample_record('my_id' => 'x1', 'tenant' => tenant, 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_not_requested(:post, %r{/_search})
+    assert_equal(1, index_cmds.count { |cmd| cmd.key?('update') })
+    assert_equal('logs-safe-2021.04.29', index_cmds.first['update']['_index'])
+  end
+
+  data("no tenant" => ["${tenant}", "_", "app", nil],
+       "empty tenant" => ["${tenant}", "_", "app", ""],
+       "tag part that does not exist" => ["${tag[1]}", "_", "app", "blue"],
+       "no tenant and an empty separator" => ["${tenant}", "", "app", nil],
+       "value from another placeholder" => ["logs-${tag}", nil, "${tenant}", "*,private"])
+  def test_skips_affinity_search_when_the_expanded_prefix_is_unsafe(data)
+    logstash_prefix, separator, tag, tenant = data
+    driver.configure(affinity_tenant_config(logstash_prefix, separator))
+    stub_opensearch
+    stub_opensearch_info
+    record = sample_record('my_id' => 'x1', 'destination' => 'logs-safe-2021.04.29')
+    record['tenant'] = tenant unless tenant.nil?
+    driver.run(default_tag: tag) do
+      driver.feed(record)
     end
     assert_not_requested(:post, %r{/_search})
     assert_equal(1, index_cmds.count { |cmd| cmd.key?('update') })
