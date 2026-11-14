@@ -1406,6 +1406,10 @@ OpenSearch fails the whole bulk request for some explicit IDs, so these records 
 
 Because data streams only accept the `create` operation, a record whose `_id` already exists returns `409`. This is counted as a duplicate, not as a failure, so a retried chunk does not report already indexed records as errors.
 
+### pipeline
+
+[pipeline](#pipeline) is also supported. The ingest pipeline is added to each bulk request, and placeholders in it are filled in from the chunk.
+
 ## Configuration - AWS OpenSearch Service
 
 This settings are effective for AWS OpenSearch Service that is successor of AWS Elasticsearch service.
