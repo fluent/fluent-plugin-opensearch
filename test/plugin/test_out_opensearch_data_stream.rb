@@ -794,10 +794,8 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
     assert_requested(bulk)
   end
 
-  def test_pipeline_is_expanded_before_records_are_processed
-    stub_default
-    bulk = stub_request(:post, %r{http://localhost:9200/foo/_bulk})
-    conf = config_element(
+  def pipeline_with_bad_tag_conf
+    config_element(
       'ROOT', '', {
       '@type' => OPENSEARCH_DATA_STREAM_TYPE,
       'data_stream_name' => 'foo',
@@ -805,8 +803,24 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
       'pipeline' => 'pipe-${tag}',
       'id_key' => 'req_id'
     }, [config_element('buffer', 'tag', {'disable_chunk_backup' => 'true'})])
-    driver(conf).run(default_tag: '/badtag') do
+  end
+
+  def test_invalid_records_go_to_error_when_pipeline_cannot_be_built
+    stub_default
+    bulk = stub_request(:post, %r{http://localhost:9200/foo/_bulk})
+    driver(pipeline_with_bad_tag_conf).run(default_tag: '/badtag') do
       driver.feed({'message' => 'bad', 'req_id' => [1]})
+    end
+    assert_equal 1, driver.error_events.size
+    assert_not_requested(bulk)
+  end
+
+  def test_chunk_with_valid_records_is_not_sent_to_error_when_pipeline_cannot_be_built
+    stub_default
+    bulk = stub_request(:post, %r{http://localhost:9200/foo/_bulk})
+    driver(pipeline_with_bad_tag_conf).run(default_tag: '/badtag') do
+      driver.feed({'message' => 'bad', 'req_id' => [1]})
+      driver.feed({'message' => 'good', 'req_id' => 'ok'})
     end
     assert_equal [], driver.error_events
     assert_not_requested(bulk)

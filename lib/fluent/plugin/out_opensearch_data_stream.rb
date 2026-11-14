@@ -156,7 +156,6 @@ module Fluent::Plugin
     def write(chunk)
       data_stream_name = @data_stream_name
       data_stream_template_name = @data_stream_template_name
-      pipeline = extract_placeholders(@pipeline, chunk) if @pipeline
       host = nil
       if @use_placeholder
         host = expand_host_placeholders(chunk)
@@ -175,6 +174,7 @@ module Fluent::Plugin
       }
       tag = chunk.metadata.tag
       records = []
+      invalid_records = []
       chunk.msgpack_each do |time, record|
         next unless record.is_a? Hash
         begin
@@ -202,12 +202,17 @@ module Fluent::Plugin
           bulk_message = append_record_to_messages(CREATE_OP, meta, headers, record, bulk_message)
           records << [time, record]
         rescue => e
-          if emit_error_label_event?
-            router.emit_error_event(tag, time, record, e)
-          end
+          invalid_records << [time, record, e]
         end
       end
 
+      # The pipeline is expanded before the invalid records go to @ERROR. If
+      # it cannot be built, the whole chunk is backed up, and the invalid
+      # records are not also sent to @ERROR.
+      pipeline = extract_placeholders(@pipeline, chunk) if @pipeline && !records.empty?
+      if emit_error_label_event?
+        invalid_records.each { |time, record, e| router.emit_error_event(tag, time, record, e) }
+      end
       return if bulk_message.to_s.empty?
 
       params = {
