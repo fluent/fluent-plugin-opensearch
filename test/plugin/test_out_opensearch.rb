@@ -4231,6 +4231,18 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     )
   end
 
+  def test_upsert_should_remove_keys_listed_with_spaces_after_commas
+    driver.configure("write_operation upsert
+                      id_key id
+                      remove_keys_on_update foo, baz")
+    stub_opensearch
+    stub_opensearch_info
+    driver.run(default_tag: 'test') do
+      driver.feed("id" => 1, "foo" => "bar", "baz" => "quix", "zip" => "zam")
+    end
+    assert_equal({"id" => 1, "zip" => "zam"}, index_cmds[1]["doc"])
+  end
+
   def test_upsert_should_remove_keys_from_when_the_keys_are_in_the_record
     driver.configure("write_operation upsert
                       id_key id

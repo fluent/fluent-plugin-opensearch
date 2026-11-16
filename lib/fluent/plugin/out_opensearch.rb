@@ -318,7 +318,7 @@ module Fluent::Plugin
       end
 
       if @remove_keys_on_update && @remove_keys_on_update.is_a?(String)
-        @remove_keys_on_update = @remove_keys_on_update.split ','
+        @remove_keys_on_update = @remove_keys_on_update.split(/\s*,\s*/)
       end
 
       raise Fluent::ConfigError, "'max_retry_putting_template' must be greater than or equal to zero." if @max_retry_putting_template < 0
