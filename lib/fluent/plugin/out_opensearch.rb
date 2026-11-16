@@ -1086,6 +1086,8 @@ module Fluent::Plugin
     # and without the trailing "*", so a value that comes in through another
     # placeholder, or an empty value, is also caught. Each character is
     # counted separately, because a strftime format like "%#p" drops its "#".
+    # An expanded target longer than 255 bytes, the limit of an index name,
+    # cannot match any index, and a long one can exceed the HTTP line limit.
     # "*" or "," written in logstash_prefix itself is kept as configured.
     def affinity_search_prefix(chunk)
       logstash_prefix = extract_placeholders(@logstash_prefix, chunk)
@@ -1104,6 +1106,7 @@ module Fluent::Plugin
       before = count_unsafe_index_expression_characters(configured)
       after = count_unsafe_index_expression_characters(expanded)
       return true if after.any? { |char, count| count > before[char] }
+      return true if index_expression_targets(expanded).any? { |target| target.delete("*").bytesize > 255 }
 
       configured_targets = index_expression_targets(configured)
       index_expression_targets(expanded).each_with_index.any? do |target, i|

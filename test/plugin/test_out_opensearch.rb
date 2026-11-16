@@ -2627,6 +2627,39 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal('logs-safe-2021.04.29', index_cmds.first['update']['_index'])
   end
 
+  data("value longer than an index name" => ["logs-${tenant}", "a" * 250],
+       "long value" => ["logs-${tenant}", "a" * 4096],
+       "long multibyte value" => ["logs-${tenant}", "\u3042" * 460])
+  def test_skips_affinity_search_when_the_expanded_prefix_is_too_long(data)
+    logstash_prefix, tenant = data
+    driver.configure(affinity_tenant_config(logstash_prefix))
+    stub_opensearch
+    stub_opensearch_info
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => 'x1', 'tenant' => tenant, 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_not_requested(:post, %r{/_search})
+    assert_equal(1, index_cmds.count { |cmd| cmd.key?('update') })
+    assert_equal('logs-safe-2021.04.29', index_cmds.first['update']['_index'])
+  end
+
+  data("value that fits an index name" => ["logs-${tenant}", "a" * 249],
+       "wildcard written in logstash_prefix" => ["logs*-${tenant}", "a" * 249])
+  def test_affinity_search_for_an_expanded_prefix_up_to_255_bytes(data)
+    logstash_prefix, tenant = data
+    driver.configure(affinity_tenant_config(logstash_prefix))
+    index = "logs1-#{tenant}-2021.04.28"
+    body = %({"hits": {"hits": [{"_index": "#{index}", "_id": "x1"}]}})
+    stub_opensearch
+    stub_opensearch_info
+    search = stub_opensearch_affinity_target_index_search_with_body("http://localhost:9200/#{logstash_prefix.sub('${tenant}', tenant)}-*/_search", ["x1"], body)
+    driver.run(default_tag: 'test') do
+      driver.feed(sample_record('my_id' => 'x1', 'tenant' => tenant, 'destination' => 'logs-safe-2021.04.29'))
+    end
+    assert_requested(search)
+    assert_equal(index, index_cmds.first['update']['_index'])
+  end
+
   def test_affinity_search_keeps_wildcard_written_in_logstash_prefix
     driver.configure(affinity_tenant_config("logs*-${tenant}"))
     body = %({"hits": {"hits": [{"_index": "logs1-blue-2021.04.28", "_id": "x1"}]}})
