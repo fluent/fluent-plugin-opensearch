@@ -1,6 +1,7 @@
 ## Changelog [[tags]](https://github.com/fluent/fluent-plugin-opensearch/tags)
 
 ### [Unreleased]
+ - error handler: do not fail the flush when the router is unavailable after shutdown
 
 ### 1.1.8
  - `out_opensearch`: limit what a host placeholder can expand to (#192)
