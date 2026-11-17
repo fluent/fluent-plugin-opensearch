@@ -2,6 +2,7 @@ require_relative '../helper'
 require 'date'
 require 'fluent/test/helpers'
 require 'fluent/test/driver/output'
+require 'fluent/version'
 require 'flexmock/test_unit'
 require 'fluent/plugin/out_opensearch_data_stream'
 
@@ -816,6 +817,8 @@ class OpenSearchOutputDataStreamTest < Test::Unit::TestCase
   end
 
   def test_chunk_with_valid_records_is_not_sent_to_error_when_pipeline_cannot_be_built
+    # The tag "/badtag" fails to expand only with the path check of Fluentd 1.19.3 or later.
+    omit("Fluentd #{Fluent::VERSION} expands a tag with a slash") if Gem::Version.new(Fluent::VERSION) < Gem::Version.new("1.19.3")
     stub_default
     bulk = stub_request(:post, %r{http://localhost:9200/foo/_bulk})
     driver(pipeline_with_bad_tag_conf).run(default_tag: '/badtag') do
