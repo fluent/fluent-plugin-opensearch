@@ -69,6 +69,15 @@ class Fluent::Plugin::OpenSearchErrorHandler
     !!@plugin.emit_error_label_event
   end
 
+  def emit_error_event(tag, time, record, error)
+    router = @plugin.router
+    if router
+      router.emit_error_event(tag, time, record, error)
+    else
+      @plugin.log.warn("could not emit an error event because the router is not available", tag: tag, error: error)
+    end
+  end
+
   def handle_error(response, tag, chunk, bulk_message_count, extracted_values)
     items = response['items']
     if items.nil? || !items.is_a?(Array)
@@ -136,14 +145,14 @@ class Fluent::Plugin::OpenSearchErrorHandler
           end
         end
         if emit_error_label_event?
-          @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
+          emit_error_event(tag, time, rawrecord, OpenSearchError.new("400 - Rejected by OpenSearch#{reason}"))
         end
       else
         if item[write_operation]['error'].is_a?(String)
           reason = item[write_operation]['error']
           stats[:errors_block_resp] += 1
           if emit_error_label_event?
-            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{reason}"))
+            emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{reason}"))
           end
           next
         elsif item[write_operation].has_key?('error') && item[write_operation]['error'].has_key?('type')
@@ -155,7 +164,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
           if unrecoverable_record_error?(type)
             if emit_error_label_event?
               reason = item[write_operation]['error']['reason']
-              @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
+              emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - #{type}: #{reason}"))
             end
             next
           else
@@ -166,7 +175,7 @@ class Fluent::Plugin::OpenSearchErrorHandler
           # expected return values.
           stats[:errors_bad_resp] += 1
           if emit_error_label_event?
-            @plugin.router.emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - No error type provided in the response"))
+            emit_error_event(tag, time, rawrecord, OpenSearchError.new("#{status} - No error type provided in the response"))
           end
           next
         end

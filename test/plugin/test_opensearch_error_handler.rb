@@ -375,6 +375,36 @@ class TestOpenSearchErrorHandler < Test::Unit::TestCase
     assert_true(@plugin.error_events[0][:error].respond_to?(:backtrace))
   end
 
+  def test_400_responses_without_router
+    plugin = TestPlugin.new(@log)
+    def plugin.router
+      nil
+    end
+    handler = Fluent::Plugin::OpenSearchErrorHandler.new(plugin)
+    records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
+    response = parse_response(%({
+      "took" : 0,
+      "errors" : true,
+      "items" : [
+        {
+          "create" : {
+            "_index" : "foo",
+            "status" : 400,
+            "_type"  : "bar",
+              "reason":"unrecognized error"
+            }
+        }
+      ]
+     }))
+    chunk = MockChunk.new(records)
+    dummy_extracted_values = []
+    assert_nothing_raised do
+      handler.handle_error(response, 'atag', chunk, records.length, dummy_extracted_values)
+    end
+    assert_equal(0, plugin.error_events.size)
+    assert_true(@log_device.logs.any? { |line| line.include?("router is not available") })
+  end
+
   def test_out_of_memory_responses
     records = [{time: 123, record: {"foo" => "bar", '_id' => 'abc'}}]
     response = parse_response(%({
