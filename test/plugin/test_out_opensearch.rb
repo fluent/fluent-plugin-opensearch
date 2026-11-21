@@ -1800,6 +1800,22 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal '/os/', host3[:path]
   end
 
+  def test_hosts_list_with_spaces_after_commas
+    config = %{
+      hosts    host1:50, host2:100 , https://host3:443/os/
+      scheme   https
+    }
+    stub_opensearch_info("https://host1:50")
+    stub_opensearch_info("https://host2:100")
+    stub_opensearch_info("https://host3:443/os/")
+    instance = driver(config).instance
+
+    hosts = instance.get_connection_options[:hosts]
+    assert_equal [['host1', 50], ['host2', 100], ['host3', 443]],
+                 hosts.map { |host| [host[:host], host[:port]] }
+    assert_equal '/os/', hosts[2][:path]
+  end
+
   def test_hosts_list
     config = %{
       hosts    https://john:password@host1:443/elastic/,http://host2

@@ -507,7 +507,7 @@ module Fluent::Plugin
     def warn_host_placeholder_with_credentials
       return if @endpoint
 
-      elements = (@hosts || @host).split(',')
+      elements = (@hosts || @host).split(/\s*,\s*/)
       return unless elements.any? { |element| element.match?(HOST_PLACEHOLDER_PATTERN) }
 
       param_name = @hosts ? 'hosts' : 'host'
@@ -766,7 +766,7 @@ module Fluent::Plugin
         end
         [host]
       elsif con_host || @hosts
-        (con_host || @hosts).split(',').map do |host_str|
+        (con_host || @hosts).split(/\s*,\s*/).map do |host_str|
           # Support legacy hosts format host:port,host:port,host:port...
           if host_str.match(%r{^[^:]+(\:\d+)?$})
             {

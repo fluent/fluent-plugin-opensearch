@@ -186,7 +186,7 @@ module Fluent::Plugin
     def get_connection_options(con_host=nil)
 
       hosts = if con_host || @hosts
-        (con_host || @hosts).split(',').map do |host_str|
+        (con_host || @hosts).split(/\s*,\s*/).map do |host_str|
           # Support legacy hosts format host:port,host:port,host:port...
           if host_str.match(%r{^[^:]+(\:\d+)?$})
             {
