@@ -202,13 +202,20 @@ module Fluent::Plugin
           bulk_message = append_record_to_messages(CREATE_OP, meta, headers, record, bulk_message)
           records << [time, record]
         rescue => e
-          invalid_records << [time, record, e]
+          next unless emit_error_label_event?
+          if @pipeline
+            invalid_records << [time, record, e]
+          else
+            router.emit_error_event(tag, time, record, e)
+          end
         end
       end
 
-      # The pipeline is expanded before the invalid records go to @ERROR. If
-      # it cannot be built, the whole chunk is backed up, and the invalid
-      # records are not also sent to @ERROR.
+      # With a pipeline, the invalid records go to @ERROR after it is
+      # expanded. If it cannot be built, the whole chunk is backed up, and the
+      # invalid records are not also sent to @ERROR. Without a pipeline, they
+      # go to @ERROR in the loop, as before. Fluentd sets router to nil when
+      # the output shuts down, so a later emit can fail after a long loop.
       pipeline = extract_placeholders(@pipeline, chunk) if @pipeline && !records.empty?
       if emit_error_label_event?
         invalid_records.each { |time, record, e| router.emit_error_event(tag, time, record, e) }
