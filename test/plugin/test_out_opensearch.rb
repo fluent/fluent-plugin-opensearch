@@ -3206,7 +3206,9 @@ class OpenSearchOutputTest < Test::Unit::TestCase
          "in a url"    => ["https://${pipeline_id}/os", "logs.example.com:9201"],
          "ipv6"        => ["http://${pipeline_id}:9201", "[2001:db8::1]"],
          "ipv6 + port" => ["http://${pipeline_id}/os", "[2001:db8::1]:9201"],
-         "ipv6 in []"  => ["http://[${pipeline_id}]:9201", "2001:db8::1"])
+         "ipv6 in []"  => ["http://[${pipeline_id}]:9201", "2001:db8::1"],
+         "after a space"  => ["logs2.example.com:9201, ${pipeline_id}", "os.internal"],
+         "before a space" => ["${pipeline_id} , logs2.example.com:9201", "os.internal:9200"])
     def test_accepts_placeholder_value_which_fills_in_the_whole_host(data)
       hosts, placeholder_value = data
       assert_equal(hosts.sub('${pipeline_id}', placeholder_value),

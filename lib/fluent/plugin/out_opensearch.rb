@@ -908,7 +908,7 @@ module Fluent::Plugin
 
     def expand_host_placeholders(chunk)
       template = @hosts || @host
-      template.split(',').each do |element|
+      template.split(/\s*,\s*/).each do |element|
         offset = 0
         while (match = HOST_PLACEHOLDER_PATTERN.match(element, offset))
           offset = match.end(0)
