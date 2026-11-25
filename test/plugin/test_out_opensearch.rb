@@ -1800,6 +1800,22 @@ class OpenSearchOutputTest < Test::Unit::TestCase
     assert_equal '/os/', host3[:path]
   end
 
+  def test_hosts_list_with_spaces_after_commas
+    config = %{
+      hosts    host1:50, host2:100 , https://host3:443/os/
+      scheme   https
+    }
+    stub_opensearch_info("https://host1:50")
+    stub_opensearch_info("https://host2:100")
+    stub_opensearch_info("https://host3:443/os/")
+    instance = driver(config).instance
+
+    hosts = instance.get_connection_options[:hosts]
+    assert_equal [['host1', 50], ['host2', 100], ['host3', 443]],
+                 hosts.map { |host| [host[:host], host[:port]] }
+    assert_equal '/os/', hosts[2][:path]
+  end
+
   def test_hosts_list
     config = %{
       hosts    https://john:password@host1:443/elastic/,http://host2
@@ -3190,7 +3206,9 @@ class OpenSearchOutputTest < Test::Unit::TestCase
          "in a url"    => ["https://${pipeline_id}/os", "logs.example.com:9201"],
          "ipv6"        => ["http://${pipeline_id}:9201", "[2001:db8::1]"],
          "ipv6 + port" => ["http://${pipeline_id}/os", "[2001:db8::1]:9201"],
-         "ipv6 in []"  => ["http://[${pipeline_id}]:9201", "2001:db8::1"])
+         "ipv6 in []"  => ["http://[${pipeline_id}]:9201", "2001:db8::1"],
+         "after a space"  => ["logs2.example.com:9201, ${pipeline_id}", "os.internal"],
+         "before a space" => ["${pipeline_id} , logs2.example.com:9201", "os.internal:9200"])
     def test_accepts_placeholder_value_which_fills_in_the_whole_host(data)
       hosts, placeholder_value = data
       assert_equal(hosts.sub('${pipeline_id}', placeholder_value),
