@@ -174,6 +174,7 @@ module Fluent::Plugin
       }
       tag = chunk.metadata.tag
       records = []
+      invalid_records = []
       chunk.msgpack_each do |time, record|
         next unless record.is_a? Hash
         begin
@@ -201,18 +202,31 @@ module Fluent::Plugin
           bulk_message = append_record_to_messages(CREATE_OP, meta, headers, record, bulk_message)
           records << [time, record]
         rescue => e
-          if emit_error_label_event?
+          next unless emit_error_label_event?
+          if @pipeline
+            invalid_records << [time, record, e]
+          else
             router.emit_error_event(tag, time, record, e)
           end
         end
       end
 
+      # With a pipeline, the invalid records go to @ERROR after it is
+      # expanded. If it cannot be built, the whole chunk is backed up, and the
+      # invalid records are not also sent to @ERROR. Without a pipeline, they
+      # go to @ERROR in the loop, as before. Fluentd sets router to nil when
+      # the output shuts down, so a later emit can fail after a long loop.
+      pipeline = extract_placeholders(@pipeline, chunk) if @pipeline && !records.empty?
+      if emit_error_label_event?
+        invalid_records.each { |time, record, e| router.emit_error_event(tag, time, record, e) }
+      end
       return if bulk_message.to_s.empty?
 
       params = {
         index: data_stream_name,
         body: bulk_message
       }
+      params[:pipeline] = pipeline if pipeline && !pipeline.empty?
       begin
         response = client(host).bulk(params)
         if response['errors']
